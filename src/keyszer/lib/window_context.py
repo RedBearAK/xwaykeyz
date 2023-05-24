@@ -128,7 +128,10 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
     @classmethod
     def get_supported_environments(cls):
         # This class supports the KDe Plasma environment on Wayland
-        return [('wayland', 'plasma')]
+        return [
+            ('wayland', 'plasma'),
+            ('wayland', 'kde')
+        ]
 
     def get_window_context(self):
         """
