@@ -72,6 +72,123 @@ class WindowContextProviderInterface(abc.ABC):
         """
 
 
+class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
+    """Window context provider object for Wayland+KDE_Plasma environments"""
+    
+    def __init__(self):
+        import textwrap
+        import dbus
+        from dbus.exceptions import DBusException
+        # import D-Bus Object helper class from separate module
+        from .window_context_dbus_helper import DBUS_Object
+
+        self.DBusException      = DBusException
+        session_bus             = dbus.SessionBus()
+        kyzr_obj_path           = '/org/keyszer/Keyszer'
+        kyzr_iface_name         = 'org.keyszer.Keyszer'
+        # D-Bus object that will be used by KWin to "talk" to `keyszer`
+        self.kyzr_dbus_svc_obj  = DBUS_Object(session_bus, kyzr_obj_path, kyzr_iface_name, self)
+        # D-Bus object that will be used to deal with the KWin script
+        self.kwin_dbus_svc_obj  = DBUS_Object(  session_bus,
+                                                "/Scripting",
+                                                "org.kde.kwin.Scripting",
+                                                self)
+
+        self.KWIN_SCRIPT_DATA   = textwrap.dedent("""
+                                    workspace.clientActivated.connect(function(client){
+                                        callDBus(
+                                            "org.keyszer.Keyszer",
+                                            "/org/keyszer/Keyszer",
+                                            "org.keyszer.Keyszer",
+                                            "NotifyActiveWindow",
+                                            "caption" in client ? client.caption : "",
+                                            "resourceClass" in client ? client.resourceClass : "",
+                                            "resourceName" in client ? client.resourceName : ""
+                                        );
+                                    });
+                                    """)
+
+        self.KWIN_SCRIPT_NAME   = 'keyszer'
+        
+        self.wm_class           = None
+        self.wm_name            = None
+        self.res_name           = None
+
+        # put logic here to check if KWin script is loaded, and
+        # to load the KWin script and start it if necessary
+        if self.is_script_loaded():
+            print(f"PLASMA_CTX: Script '{self.KWIN_SCRIPT_NAME}' is loaded.")
+        else:
+            print(f"PLASMA_CTX: Script '{self.KWIN_SCRIPT_NAME}' is NOT loaded.")
+            self.load_script()
+            self.start_script()
+            
+        self.connect()
+
+    @classmethod
+    def get_supported_environments(cls):
+        # This class supports the KDe Plasma environment on Wayland
+        return [('wayland', 'plasma')]
+
+    def get_window_context(self):
+        """
+        This function creates a D-Bus client that asks the Plasma shell
+        to notify it whenever the active window changes, with the window
+        class and name/title attributes
+        """
+        return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
+
+    # def window_changed_handler(self, caption, resource_class, resource_name):
+    # def window_changed_handler(self, window_class, window_name):
+        # self.wm_class       = window_class
+        # self.wm_name        = window_name
+
+    def window_changed_handler(self, *args):
+        print("Received arguments:", args)
+        try:
+            self.wm_class = args[0]
+            self.wm_name = args[1]
+            self.res_name = args[2]
+        except IndexError:
+            print("Received less arguments than expected.")
+
+    def is_script_loaded(self):
+        try:
+            return self.kwin_dbus_svc_obj.call_method("isScriptLoaded", self.KWIN_SCRIPT_NAME)
+        except self.DBusException:
+            print(f"PLASMA_CTX: Error occurred while calling 'isScriptLoaded' method")
+            return False
+
+    def load_script(self):
+        try:
+            # with open("kwin_script.js", 'r', encoding='UTF-8') as file:
+            #     script_content = file.read()
+            self.kwin_dbus_svc_obj.call_method("loadScript", self.KWIN_SCRIPT_DATA)
+        except self.DBusException as dbus_error:
+            print(f"PLASMA_CTX: Error occurred while calling 'loadScript' method:\n\t{dbus_error}")
+
+    def start_script(self):
+        try:
+            self.kwin_dbus_svc_obj.call_method("start", self.KWIN_SCRIPT_NAME)
+        except self.DBusException as dbus_error:
+            print(f"PLASMA_CTX: Error occurred while calling 'start' method:\n\t{dbus_error}")
+
+    def unload_script(self):
+        try:
+            self.kwin_dbus_svc_obj.call_method("unload", self.KWIN_SCRIPT_NAME)
+        except self.DBusException as dbus_error:
+            print(f"PLASMA_CTX: Error occurred while calling 'unload' method:\n\t{dbus_error}")
+
+    def connect(self):
+        # Subscribe to window changes
+        self.kyzr_dbus_svc_obj.connect_to_signal('WindowChanged', self.window_changed_handler)
+
+    def disconnect(self):
+        self.kyzr_dbus_svc_obj.disconnect_from_signal('WindowChanged', self.window_changed_handler)
+        self.unload_script()
+
+
+
 class Wl_GNOME_WindowContext(WindowContextProviderInterface):
     """Window context provider object for Wayland+GNOME environments"""
 
@@ -149,7 +266,6 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
             try:
                 # Call the function associated with the extension
                 context = self.GNOME_SHELL_EXTENSIONS[extension_uuid]()
-            # pylint disable=broad-exception-caught
             except self.DBusException as e:
                 error(f"Error returned from GNOME Shell extension '{extension_uuid}'\n\t {e}")
                 # Continue to the next extension
@@ -157,7 +273,7 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
             else:
                 # No exceptions were thrown, so this extension is now the preferred one
                 self.last_good_ext_uuid = extension_uuid
-                debug(f"SHELL_EXT: Using '{self.last_good_ext_uuid}' for window context")
+                debug(f"SHELL_EXT: Using UUID '{self.last_good_ext_uuid}' for window context")
                 return context
 
         # If we reach here, it means all extensions have failed
@@ -174,6 +290,7 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
         error(f'Install "Extension Manager" from Flathub to manage GNOME Shell extensions')
         error(f'############################################################################')
         print()
+
         return NO_CONTEXT_WAS_ERROR
 
     def get_wl_gnome_dbus_focused_wdw_context(self):
