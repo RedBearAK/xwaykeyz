@@ -133,12 +133,26 @@ def main():
 
     # Inject the KWin script
     try:
-        kwin_scripting = session_bus.get_object(KWIN_DBUS_SVC_IFACE, KWIN_DBUS_SVC_PATH)
-        load_script = kwin_scripting.get_dbus_method('loadScript', 'org.kde.kwin.Scripting')
-        # script_id = load_script(KWIN_SCRIPT_DATA, KWIN_SCRIPT_NAME)
-        script_id = load_script(KWIN_SCRIPT_FILE.name, KWIN_SCRIPT_NAME)
-        start = kwin_scripting.get_dbus_method('start', 'org.kde.kwin.Scripting')
-        start(script_id)
+        # Get the kwin scripting interface
+        kwin_scripting = dbus.Interface(
+            session_bus.get_object(
+                KWIN_DBUS_SVC_IFACE,
+                KWIN_DBUS_SVC_PATH
+                ),
+                'org.kde.kwin.Scripting')
+
+        # Call the loadScript method
+        script_id = kwin_scripting.call_method('loadScript', KWIN_SCRIPT_FILE.name, KWIN_SCRIPT_NAME)
+        
+        # Call the start method
+        kwin_scripting.call_method('start', script_id)
+
+        # kwin_scripting = session_bus.get_object(KWIN_DBUS_SVC_IFACE, KWIN_DBUS_SVC_PATH)
+        # load_script = kwin_scripting.get_dbus_method('loadScript', 'org.kde.kwin.Scripting')
+        # # script_id = load_script(KWIN_SCRIPT_DATA, KWIN_SCRIPT_NAME)
+        # script_id = load_script(KWIN_SCRIPT_FILE.name, KWIN_SCRIPT_NAME)
+        # start = kwin_scripting.get_dbus_method('start', 'org.kde.kwin.Scripting')
+        # start(script_id)
     except DBusException as dbus_error:
         print(f"DBUS_SVC: Failed to inject KWin script:\n\t{dbus_error}")
         sys.exit(1)
