@@ -93,7 +93,7 @@ def main():
         sys.exit(1)
 
     # Run the main loop
-    dbus.mainloop.glib.NativeMainLoop().run()
+    dbus.mainloop.glib.DBusGMainLoop().run()
 
 if __name__ == "__main__":
     main()
