@@ -14,13 +14,13 @@ from dbus.service import method
 # of window focus changes by KWin
 
 
-KYZR_DBUS_SVC_PATH = '/org/keyszer/Keyszer'
+KYZR_DBUS_SVC_PATH  = '/org/keyszer/Keyszer'
 KYZR_DBUS_SVC_IFACE = 'org.keyszer.Keyszer'
-KWIN_DBUS_SVC_PATH = '/Scripting'
-KWIN_DBUS_SVC_IFACE = 'org.kde.kwin.Scripting'
+KWIN_DBUS_SVC_PATH  = '/Scripting'
+KWIN_DBUS_SVC_IFACE = 'org.kde.KWin'
 
-KWIN_SCRIPT_NAME = 'keyszer'
-KWIN_SCRIPT_DATA = textwrap.dedent("""
+KWIN_SCRIPT_NAME    = 'keyszer'
+KWIN_SCRIPT_DATA    = textwrap.dedent("""
                         workspace.clientActivated.connect(function(client){
                             callDBus(
                                 "org.keyszer.Keyszer",
@@ -42,15 +42,15 @@ class DBUS_Object(dbus.service.Object):
         self.interface_name = interface_name
         self.dbus_svc_bus_name = dbus.service.BusName(interface_name, bus=session_bus)
 
-        self.caption = ""
+        self.caption        = ""
         self.resource_class = ""
-        self.resource_name = ""
+        self.resource_name  = ""
 
     @dbus.service.method(KYZR_DBUS_SVC_IFACE, in_signature='sss')
     def NotifyActiveWindow(self, caption, resource_class, resource_name):
-        self.caption = caption
+        self.caption        = caption
         self.resource_class = resource_class
-        self.resource_name = resource_name
+        self.resource_name  = resource_name
 
     @dbus.service.method(KYZR_DBUS_SVC_IFACE, out_signature='sss')
     def GetActiveWindow(self):
