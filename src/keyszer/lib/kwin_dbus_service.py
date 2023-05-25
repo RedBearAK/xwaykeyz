@@ -24,6 +24,11 @@ KWIN_DBUS_SVC_IFACE = 'org.kde.KWin'
 KWIN_SCRIPT_NAME    = 'keyszer'
 KWIN_SCRIPT_DATA    = textwrap.dedent("""
                         workspace.clientActivated.connect(function(client){
+                            print("client: " + client);
+                            print("caption: " + client.caption);
+                            print("resourceClass: " + client.resourceClass);
+                            print("resourceName: " + client.resourceName);
+
                             callDBus(
                                 "org.keyszer.Keyszer",
                                 "/org/keyszer/Keyszer",

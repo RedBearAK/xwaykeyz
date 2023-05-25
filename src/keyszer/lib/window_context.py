@@ -80,6 +80,7 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
     def __init__(self):
         import os
         import dbus
+        import time
         import subprocess
         from dbus.exceptions import DBusException
 
@@ -93,6 +94,7 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
             self.kwin_dbus_svc_proc.poll()
             if self.kwin_dbus_svc_proc.poll() is not None:
                 raise subprocess.SubprocessError('The KWin service script failed to start')
+            time.sleep(3)
         except subprocess.SubprocessError as proc_error:
             debug(f'Problem starting the KWin service script.\n\t{proc_error}')
 
