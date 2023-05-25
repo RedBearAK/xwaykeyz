@@ -99,7 +99,7 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         try:
             self.proxy_kwin_script  = self.session_bus.get_object(
                                                             "org.kde.kwin",
-                                                            "Scripting/")
+                                                            "/Scripting")
         except self.DBusException as dbus_error:
             error(f'DBusException with proxy_kwin_script:\n\t{dbus_error}')
 
