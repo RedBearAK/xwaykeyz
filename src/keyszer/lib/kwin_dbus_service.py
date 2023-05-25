@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
-import textwrap
 import sys
 import dbus
+import textwrap
 import dbus.service
 import dbus.mainloop.glib
 
+from gi.repository import GLib
 from dbus.exceptions import DBusException
 from dbus.service import method
 
@@ -16,6 +17,7 @@ from dbus.service import method
 
 KYZR_DBUS_SVC_PATH  = '/org/keyszer/Keyszer'
 KYZR_DBUS_SVC_IFACE = 'org.keyszer.Keyszer'
+
 KWIN_DBUS_SVC_PATH  = '/Scripting'
 KWIN_DBUS_SVC_IFACE = 'org.kde.KWin'
 
@@ -93,7 +95,9 @@ def main():
         sys.exit(1)
 
     # Run the main loop
-    dbus.mainloop.glib.DBusGMainLoop().run()
+    # dbus.mainloop.glib.DBusGMainLoop().run()
+    GLib.MainLoop().run()
+
 
 if __name__ == "__main__":
     main()
