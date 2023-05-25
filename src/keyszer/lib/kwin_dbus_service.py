@@ -9,8 +9,6 @@ import dbus.mainloop.glib
 from dbus.exceptions import DBusException
 from dbus.service import method
 
-from .window_context import Wl_KDE_Plasma_WindowContext
-
 # Independent module/script to create a D-Bus window context
 # service in a KDE Plasma environment, which will be notified
 # of window focus changes by KWin
