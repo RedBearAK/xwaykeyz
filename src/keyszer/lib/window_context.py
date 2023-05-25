@@ -1,4 +1,5 @@
 import abc
+import sys
 import json
 
 from typing import Dict
@@ -77,9 +78,9 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
     """Window context provider object for Wayland+KDE_Plasma environments"""
 
     def __init__(self):
-        import subprocess
         import os
         import dbus
+        import subprocess
         from dbus.exceptions import DBusException
 
         self.DBusException      = DBusException
@@ -110,6 +111,7 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
             print(f"DBusException with iface_kwin_script:\n\t{dbus_error}")
         except AttributeError as e:
             print(f'{e}')
+            sys.exit(1)
 
         self.wm_class           = None
         self.wm_name            = None
