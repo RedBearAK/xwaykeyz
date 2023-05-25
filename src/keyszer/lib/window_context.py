@@ -97,7 +97,7 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
 
         try:
             self.proxy_kwin_script  = self.session_bus.get_object(
-                                                            "org.kde.kwin.Scripting",
+                                                            "org.kde.kwin",
                                                             "/Scripting")
         except self.DBusException as e:
             print(f'DBusException with proxy_kwin_script:\n\t{e}')
@@ -128,9 +128,6 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         """
         Gets window context info from D-Bus service fed by KWin script
         """
-
-        # Now we need to actually get the info from the D-Bus service here
-        # something.something.GetActiveWindow()?
 
         try:
             window_info     = self.iface_kwin_script.GetActiveWindow()
