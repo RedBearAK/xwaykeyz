@@ -17,7 +17,7 @@ from dbus.service import method
 KYZR_DBUS_SVC_PATH = '/org/keyszer/Keyszer'
 KYZR_DBUS_SVC_IFACE = 'org.keyszer.Keyszer'
 KWIN_DBUS_SVC_PATH = '/Scripting'
-KWIN_DBUS_SVC_IFACE = 'org.kde.kwin.Scripting'
+KWIN_DBUS_SVC_IFACE = 'org.kde.KWin'
 
 KWIN_SCRIPT_NAME = 'keyszer'
 KWIN_SCRIPT_DATA = textwrap.dedent("""
@@ -73,11 +73,21 @@ def main():
 
     # Inject the KWin script
     try:
+        print(f'kwin_dbus_service.py - Before setting kwin_scripting...')
         kwin_scripting = session_bus.get_object(KWIN_DBUS_SVC_IFACE, KWIN_DBUS_SVC_PATH)
+        print(f'kwin_dbus_service.py - After setting kwin_scripting...')
+        print(f'kwin_dbus_service.py - Before setting load_script...')
         load_script = kwin_scripting.get_dbus_method('loadScript', KWIN_DBUS_SVC_IFACE)
+        print(f'kwin_dbus_service.py - After setting load_script...')
+        print(f'kwin_dbus_service.py - Before setting script_id...')
         script_id = load_script(KWIN_SCRIPT_DATA)
+        print(f'kwin_dbus_service.py - After setting script_id...')
+        print(f'kwin_dbus_service.py - Before start = kwin_scripting.get_dbus_method()...')
         start = kwin_scripting.get_dbus_method('start', KWIN_DBUS_SVC_IFACE)
+        print(f'kwin_dbus_service.py - After start = kwin_scripting.get_dbus_method()...')
+        print(f'kwin_dbus_service.py - Before start(script_id)...')
         start(script_id)
+        print(f'kwin_dbus_service.py - After start(script_id)...')
     except DBusException as dbus_error:
         print(f"DBUS_SVC: Failed to inject KWin script:\n\t{dbus_error}")
         sys.exit(1)
