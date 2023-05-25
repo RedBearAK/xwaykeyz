@@ -99,18 +99,18 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         try:
             self.proxy_kwin_script  = self.session_bus.get_object(
                                                             "org.kde.kwin",
-                                                            "/Scripting")
+                                                            "Scripting/")
         except self.DBusException as dbus_error:
-            print(f'DBusException with proxy_kwin_script:\n\t{dbus_error}')
+            error(f'DBusException with proxy_kwin_script:\n\t{dbus_error}')
 
         try:
             self.iface_kwin_script  = dbus.Interface(
                                                 self.proxy_kwin_script,
                                                 "org.kde.kwin.Scripting")
         except self.DBusException as dbus_error:
-            print(f"DBusException with iface_kwin_script:\n\t{dbus_error}")
+            error(f"DBusException with iface_kwin_script:\n\t{dbus_error}")
         except AttributeError as e:
-            print(f'{e}')
+            error(f'{e}')
             sys.exit(1)
 
         self.wm_class           = None
