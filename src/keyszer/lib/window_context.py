@@ -97,18 +97,29 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
             debug(f'Problem starting the KWin service script.\n\t{proc_error}')
 
         try:
-            self.proxy_kwin_script  = self.session_bus.get_object(
-                                                            "org.kde.KWin",
-                                                            "/Scripting")
+            self.proxy_kwin_script  = self.session_bus.get_object(  "org.kde.KWin",
+                                                                    "/Scripting")
         except self.DBusException as dbus_error:
             error(f'DBusException with proxy_kwin_script:\n\t{dbus_error}')
-
         try:
-            self.iface_kwin_script  = dbus.Interface(
-                                                self.proxy_kwin_script,
-                                                "org.kde.kwin.Scripting")
+            self.iface_kwin_script  = dbus.Interface(   self.proxy_kwin_script,
+                                                        "org.kde.kwin.Scripting")
         except self.DBusException as dbus_error:
             error(f"DBusException with iface_kwin_script:\n\t{dbus_error}")
+        except AttributeError as e:
+            error(f'{e}')
+            sys.exit(1)
+
+        try:
+            self.proxy_kyzr_svc     = self.session_bus.get_object( "org.keyszer.Keyszer",
+                                                            "/org/keyszer/Keyszer")
+        except self.DBusException as dbus_error:
+            error(f'DBusException with proxy_kyzr:\n\t{dbus_error}')
+        try:
+            self.iface_kyzr_svc     = dbus.Interface(   self.proxy_kyzr_svc,
+                                                        "org.keyszer.Keyszer")
+        except self.DBusException as dbus_error:
+            error(f"DBusException with iface_kyzr:\n\t{dbus_error}")
         except AttributeError as e:
             error(f'{e}')
             sys.exit(1)
@@ -134,7 +145,7 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         """
 
         try:
-            window_info     = self.iface_kwin_script.GetActiveWindow()
+            window_info     = self.iface_kyzr_svc.GetActiveWindow()
             debug(f'What is coming from KDE D-Bus service:\n\t{window_info = }')
             if len(window_info) < 3:
                 error(f'Error: Incomplete window information returned from KDE Plasma window context D-Bus service')
