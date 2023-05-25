@@ -49,29 +49,50 @@ KWIN_DBUS_SVC_PATH  = '/Scripting'
 KWIN_DBUS_SVC_IFACE = 'org.kde.KWin'
 
 KWIN_SCRIPT_NAME    = 'keyszer'
-KWIN_SCRIPT_DATA    = textwrap.dedent("""
-                        workspace.clientActivated.connect(function(client){
-                            print("client: " + client);
-                            print("caption: " + client.caption);
-                            print("resourceClass: " + client.resourceClass);
-                            print("resourceName: " + client.resourceName);
+# KWIN_SCRIPT_DATA    = textwrap.dedent("""
+#                         workspace.clientActivated.connect(function(client){
+#                             print("client: " + client);
+#                             print("caption: " + client.caption);
+#                             print("resourceClass: " + client.resourceClass);
+#                             print("resourceName: " + client.resourceName);
 
-                            callDBus(
-                                "org.keyszer.Keyszer",
-                                "/org/keyszer/Keyszer",
-                                "org.keyszer.Keyszer",
-                                "NotifyActiveWindow",
-                                "caption" in client ? client.caption : "",
-                                "resourceClass" in client ? client.resourceClass : "",
-                                "resourceName" in client ? client.resourceName : ""
-                            );
-                        });
-                        """)
+#                             callDBus(
+#                                 "org.keyszer.Keyszer",
+#                                 "/org/keyszer/Keyszer",
+#                                 "org.keyszer.Keyszer",
+#                                 "NotifyActiveWindow",
+#                                 "caption" in client ? client.caption : "",
+#                                 "resourceClass" in client ? client.resourceClass : "",
+#                                 "resourceName" in client ? client.resourceName : ""
+#                             );
+#                         });
+#                         """)
+KWIN_SCRIPT_DATA    = """
+function ActiveWindowInfo(caption, resourceClass, resourceName) {
+    this.caption = caption;
+    this.resourceClass = resourceClass;
+    this.resourceName = resourceName;
+}
+
+ActiveWindowInfo.prototype = {
+    toDBus: function() {
+        return [this.caption, this.resourceClass, this.resourceName];
+    }
+};
+
+workspace.clientActivated.connect(function(client) {
+    var caption = client.caption || "";
+    var resourceClass = client.resourceClass || "";
+    var resourceName = client.resourceName || "";
+    script.notify("activeWindowChanged", new ActiveWindowInfo(caption, resourceClass, resourceName));
+});
+"""
+
 
 
 class DBUS_Object(dbus.service.Object):
     """Class to handle D-Bus interactions"""
-    def __init__(self, session_bus, object_path, interface_name):
+    def __init__(self, session_bus, object_path, interface_name, kwin_scripting):
         super().__init__(session_bus, object_path)
         self.interface_name = interface_name
         self.dbus_svc_bus_name = dbus.service.BusName(interface_name, bus=session_bus)
@@ -80,11 +101,18 @@ class DBUS_Object(dbus.service.Object):
         self.resource_class = ""
         self.resource_name  = ""
 
-    @dbus.service.method(KYZR_DBUS_SVC_IFACE, in_signature='sss')
-    def NotifyActiveWindow(self, caption, resource_class, resource_name):
-        self.caption        = caption
-        self.resource_class = resource_class
-        self.resource_name  = resource_name
+        kwin_scripting.connect_to_signal("activeWindowChanged", self.handle_active_window_changed)
+
+    def handle_active_window_changed(self, active_window_info):
+        self.caption = active_window_info[0]
+        self.resource_class = active_window_info[1]
+        self.resource_name = active_window_info[2]
+
+    # @dbus.service.method(KYZR_DBUS_SVC_IFACE, in_signature='sss')
+    # def NotifyActiveWindow(self, caption, resource_class, resource_name):
+    #     self.caption        = caption
+    #     self.resource_class = resource_class
+    #     self.resource_name  = resource_name
 
     @dbus.service.method(KYZR_DBUS_SVC_IFACE, out_signature='sss')
     def GetActiveWindow(self):
@@ -98,13 +126,6 @@ def main():
     # Connect to the session bus
     session_bus = dbus.SessionBus()
 
-    # Create the DBUS_Object
-    try:
-        DBUS_Object(session_bus, KYZR_DBUS_SVC_PATH, KYZR_DBUS_SVC_IFACE)
-    except DBusException as dbus_error:
-        print(f"DBUS_SVC: Error occurred while creating D-Bus service object:\n\t{dbus_error}")
-        sys.exit(1)
-
     # Inject the KWin script
     try:
         kwin_scripting = session_bus.get_object(KWIN_DBUS_SVC_IFACE, KWIN_DBUS_SVC_PATH)
@@ -114,6 +135,13 @@ def main():
         start(script_id)
     except DBusException as dbus_error:
         print(f"DBUS_SVC: Failed to inject KWin script:\n\t{dbus_error}")
+        sys.exit(1)
+
+    # Create the DBUS_Object
+    try:
+        DBUS_Object(session_bus, KYZR_DBUS_SVC_PATH, KYZR_DBUS_SVC_IFACE, kwin_scripting)
+    except DBusException as dbus_error:
+        print(f"DBUS_SVC: Error occurred while creating D-Bus service object:\n\t{dbus_error}")
         sys.exit(1)
 
     # Run the main loop
