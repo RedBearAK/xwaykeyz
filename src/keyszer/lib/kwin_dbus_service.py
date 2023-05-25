@@ -17,7 +17,7 @@ from dbus.service import method
 KYZR_DBUS_SVC_PATH = '/org/keyszer/Keyszer'
 KYZR_DBUS_SVC_IFACE = 'org.keyszer.Keyszer'
 KWIN_DBUS_SVC_PATH = '/Scripting'
-KWIN_DBUS_SVC_IFACE = 'org.kde.KWin'
+KWIN_DBUS_SVC_IFACE = 'org.kde.kwin.Scripting'
 
 KWIN_SCRIPT_NAME = 'keyszer'
 KWIN_SCRIPT_DATA = textwrap.dedent("""
