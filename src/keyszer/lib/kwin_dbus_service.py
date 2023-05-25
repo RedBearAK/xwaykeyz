@@ -68,26 +68,44 @@ KWIN_SCRIPT_NAME    = 'keyszer'
 #                             );
 #                         });
 #                         """)
+# KWIN_SCRIPT_DATA    = """
+# function ActiveWindowInfo(caption, resourceClass, resourceName) {
+#     this.caption = caption;
+#     this.resourceClass = resourceClass;
+#     this.resourceName = resourceName;
+# }
+
+# ActiveWindowInfo.prototype = {
+#     toDBus: function() {
+#         return [this.caption, this.resourceClass, this.resourceName];
+#     }
+# };
+
+# workspace.clientActivated.connect(function(client) {
+#     var caption = client.caption || "";
+#     var resourceClass = client.resourceClass || "";
+#     var resourceName = client.resourceName || "";
+#     script.notify("activeWindowChanged", new ActiveWindowInfo(caption, resourceClass, resourceName));
+# });
+# """
 KWIN_SCRIPT_DATA    = """
-function ActiveWindowInfo(caption, resourceClass, resourceName) {
-    this.caption = caption;
-    this.resourceClass = resourceClass;
-    this.resourceName = resourceName;
+var logFilePath = "/tmp/kwin_focused_window.txt";
+
+function windowChanged(winId) {
+    var win = workspace.clientList().find(function(client) {
+        return client.windowId == winId;
+    });
+
+    if (win) {
+        var fs = require('fs');
+        var logMessage = "active window: caption: '" + win.caption + "', class: '" + win.resourceClass.toString() + "', name: '" + win.resourceName.toString() + "'";
+        fs.appendFileSync(logFilePath, logMessage + '\n');
+    }
 }
 
-ActiveWindowInfo.prototype = {
-    toDBus: function() {
-        return [this.caption, this.resourceClass, this.resourceName];
-    }
-};
-
-workspace.clientActivated.connect(function(client) {
-    var caption = client.caption || "";
-    var resourceClass = client.resourceClass || "";
-    var resourceName = client.resourceName || "";
-    script.notify("activeWindowChanged", new ActiveWindowInfo(caption, resourceClass, resourceName));
-});
+workspace.windowChanged.connect(windowChanged);
 """
+
 KWIN_SCRIPT_FILE = tempfile.NamedTemporaryFile(delete=False)
 
 with open(KWIN_SCRIPT_FILE.name, 'w', encoding='UTF-8') as script_file:
