@@ -5,6 +5,7 @@ import sys
 import dbus
 import signal
 import platform
+import tempfile
 import textwrap
 import dbus.service
 import dbus.mainloop.glib
@@ -87,6 +88,10 @@ workspace.clientActivated.connect(function(client) {
     script.notify("activeWindowChanged", new ActiveWindowInfo(caption, resourceClass, resourceName));
 });
 """
+KWIN_SCRIPT_FILE = tempfile.NamedTemporaryFile(delete=False)
+
+with open(KWIN_SCRIPT_FILE.name, 'w') as script_file:
+    script_file.write(KWIN_SCRIPT_DATA)
 
 
 
@@ -130,7 +135,7 @@ def main():
     try:
         kwin_scripting = session_bus.get_object(KWIN_DBUS_SVC_IFACE, KWIN_DBUS_SVC_PATH)
         load_script = kwin_scripting.get_dbus_method('loadScript', 'org.kde.kwin.Scripting')
-        script_id = load_script(KWIN_SCRIPT_DATA)
+        script_id = load_script(KWIN_SCRIPT_DATA, KWIN_SCRIPT_NAME)
         start = kwin_scripting.get_dbus_method('start', 'org.kde.kwin.Scripting')
         start(script_id)
     except DBusException as dbus_error:
