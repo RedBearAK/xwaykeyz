@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
+import os
 import sys
 import dbus
+import signal
+import platform
 import textwrap
 import dbus.service
 import dbus.mainloop.glib
@@ -13,6 +16,30 @@ from dbus.service import method
 # Independent module/script to create a D-Bus window context
 # service in a KDE Plasma environment, which will be notified
 # of window focus changes by KWin
+
+
+if os.name == 'posix' and os.geteuid() == 0:
+    print("This app should not be run as root/superuser.")
+    sys.exit(1)
+
+def signal_handler(sig, frame):
+    """handle signals like Ctrl+C"""
+    if sig in (signal.SIGINT, signal.SIGQUIT):
+        # Perform any cleanup code here before exiting
+        # traceback.print_stack(frame)
+        print(f'\nSIGINT or SIGQUIT received. Exiting.\n')
+        sys.exit(0)
+
+if platform.system() != 'Windows':
+    signal.signal(signal.SIGINT,    signal_handler)
+    signal.signal(signal.SIGQUIT,   signal_handler)
+    signal.signal(signal.SIGHUP,    signal_handler)
+    signal.signal(signal.SIGUSR1,   signal_handler)
+    signal.signal(signal.SIGUSR2,   signal_handler)
+else:
+    signal.signal(signal.SIGINT,    signal_handler)
+    print(f'This is only meant to run on Linux. Exiting...')
+    sys.exit(1)
 
 
 KYZR_DBUS_SVC_PATH  = '/org/keyszer/Keyszer'
