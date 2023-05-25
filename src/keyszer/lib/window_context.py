@@ -95,15 +95,19 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         except subprocess.SubprocessError as proc_error:
             debug(f'Problem starting the KWin service script.\n\t{proc_error}')
 
-        self.proxy_kwin_script  = self.session_bus.get_object(
-                                                        "org.kde.kwin.Scripting",
-                                                        "/Scripting")
+        try:
+            self.proxy_kwin_script  = self.session_bus.get_object(
+                                                            "org.kde.kwin.Scripting",
+                                                            "/Scripting")
+        except self.DBusException as e:
+            print(f'DBusException with proxy_kwin_script:\n\t{e}')
+
         try:
             self.iface_kwin_script  = dbus.Interface(
                                                 self.proxy_kwin_script,
                                                 "org.kde.kwin.Scripting")
-        except dbus.exceptions.DBusException as e:
-            print(f"DBusException: {e}")
+        except self.DBusException as e:
+            print(f"DBusException with iface_kwin_script:\n\t{e}")
 
         self.wm_class           = None
         self.wm_name            = None
