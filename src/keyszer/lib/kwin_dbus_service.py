@@ -140,7 +140,8 @@ def main():
         kwin_scripting = dbus.Interface(kwin_scripting_proxy, 'org.kde.kwin.Scripting')
         
         # Call the loadScript method with two parameters (filePath and pluginName)
-        script_id = kwin_scripting.loadScript(KWIN_SCRIPT_FILE.name, KWIN_SCRIPT_NAME)
+        # script_id = kwin_scripting.loadScript(KWIN_SCRIPT_FILE.name, KWIN_SCRIPT_NAME)
+        script_id = kwin_scripting.loadScript(KWIN_SCRIPT_DATA)
         
         # Call the start method
         kwin_scripting.start(script_id)
