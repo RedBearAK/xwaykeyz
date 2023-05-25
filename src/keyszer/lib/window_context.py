@@ -147,14 +147,14 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         """
 
         try:
-            window_info     = str(self.iface_kyzr_svc.GetActiveWindow())
+            window_info     = self.iface_kyzr_svc.GetActiveWindow()
             debug(f'What is coming from KDE D-Bus service:\n\t{window_info = }')
             if len(window_info) < 3:
                 error(f'Error: Incomplete window information returned from KDE Plasma window context D-Bus service')
                 return NO_CONTEXT_WAS_ERROR
-            self.wm_class   = window_info[0] or ''
-            self.wm_name    = window_info[1] or ''
-            self.res_name   = window_info[2] or ''
+            self.wm_class   = str(window_info[0] or '')
+            self.wm_name    = str(window_info[1] or '')
+            self.res_name   = str(window_info[2] or '')
         except self.DBusException as dbus_error:
             error(f'Error returned from KDE Plasma window context D-Bus service:\n\t{dbus_error}')
             return NO_CONTEXT_WAS_ERROR
