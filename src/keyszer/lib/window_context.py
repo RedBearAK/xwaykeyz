@@ -1,5 +1,6 @@
 import abc
 import json
+
 from typing import Dict
 
 from .logger import error, debug
@@ -74,60 +75,41 @@ class WindowContextProviderInterface(abc.ABC):
 
 class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
     """Window context provider object for Wayland+KDE_Plasma environments"""
-    
+
     def __init__(self):
-        import textwrap
+        import subprocess
         import dbus
         from dbus.exceptions import DBusException
-        # import D-Bus Object helper class from separate module
-        from .window_context_dbus_helper import DBUS_Object
 
         self.DBusException      = DBusException
-        session_bus             = dbus.SessionBus()
-        kyzr_obj_path           = '/org/keyszer/Keyszer'
-        kyzr_iface_name         = 'org.keyszer.Keyszer'
-        # D-Bus object that will be used by KWin to "talk" to `keyszer`
-        self.kyzr_dbus_svc_obj  = DBUS_Object(session_bus, kyzr_obj_path, kyzr_iface_name, self)
-        # D-Bus object that will be used to deal with the KWin script
-        self.kwin_dbus_svc_obj  = DBUS_Object(  session_bus,
-                                                "/Scripting",
-                                                "org.kde.kwin.Scripting",
-                                                self)
+        self.session_bus        = dbus.SessionBus()
 
-        self.KWIN_SCRIPT_DATA   = textwrap.dedent("""
-                                    workspace.clientActivated.connect(function(client){
-                                        callDBus(
-                                            "org.keyszer.Keyszer",
-                                            "/org/keyszer/Keyszer",
-                                            "org.keyszer.Keyszer",
-                                            "NotifyActiveWindow",
-                                            "caption" in client ? client.caption : "",
-                                            "resourceClass" in client ? client.resourceClass : "",
-                                            "resourceName" in client ? client.resourceName : ""
-                                        );
-                                    });
-                                    """)
+        try:
+            # pylint: disable=consider-using-with
+            self.kwin_dbus_svc_proc = subprocess.Popen(["python", "./kwin_dbus_service.py"])
+            self.kwin_dbus_svc_proc.poll()
+            if self.kwin_dbus_svc_proc.poll() is not None:
+                raise subprocess.SubprocessError('The KWin service script failed to start')
+        except subprocess.SubprocessError as proc_error:
+            debug(f'Problem starting the KWin service script.\n\t{proc_error}')
 
-        self.KWIN_SCRIPT_NAME   = 'keyszer'
-        
+        self.proxy_kwin_script  = self.session_bus.get_object(
+                                                        "org.kde.kwin.Scripting",
+                                                        "/Scripting")
+        self.iface_kwin_script  = dbus.Interface(
+                                            self.proxy_kwin_script,
+                                            "org.kde.kwin.Scripting")
+
         self.wm_class           = None
         self.wm_name            = None
         self.res_name           = None
 
-        # put logic here to check if KWin script is loaded, and
-        # to load the KWin script and start it if necessary
-        if self.is_script_loaded():
-            print(f"PLASMA_CTX: Script '{self.KWIN_SCRIPT_NAME}' is loaded.")
-        else:
-            print(f"PLASMA_CTX: Script '{self.KWIN_SCRIPT_NAME}' is NOT loaded.")
-            self.load_script()
-            self.start_script()
-            
-        self.connect()
+    def __del__(self):
+        self.stop()
 
     @classmethod
     def get_supported_environments(cls):
-        # This class supports the KDe Plasma environment on Wayland
+        # This class supports the KDE Plasma environment on Wayland
         return [
             ('wayland', 'plasma'),
             ('wayland', 'kde')
@@ -135,61 +117,34 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
 
     def get_window_context(self):
         """
-        This function creates a D-Bus client that asks the Plasma shell
-        to notify it whenever the active window changes, with the window
-        class and name/title attributes
+        Gets window context info from D-Bus service fed by KWin script
         """
+
+        # Now we need to actually get the info from the D-Bus service here
+        # something.something.GetActiveWindow()?
+
+        try:
+            window_info     = self.iface_kwin_script.GetActiveWindow()
+            debug(f'What is coming from KDE D-Bus service:\n\t{window_info = }')
+            if len(window_info) < 3:
+                error(f'Error: Incomplete window information returned from KDE Plasma window context D-Bus service')
+                return NO_CONTEXT_WAS_ERROR
+            self.wm_class   = window_info[0] or ''
+            self.wm_name    = window_info[1] or ''
+            self.res_name   = window_info[2] or ''
+        except self.DBusException as dbus_error:
+            error(f'Error returned from KDE Plasma window context D-Bus service:\n\t{dbus_error}')
+            return NO_CONTEXT_WAS_ERROR
+
         return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
 
-    # def window_changed_handler(self, caption, resource_class, resource_name):
-    # def window_changed_handler(self, window_class, window_name):
-        # self.wm_class       = window_class
-        # self.wm_name        = window_name
-
-    def window_changed_handler(self, *args):
-        print("Received arguments:", args)
+    def stop(self):
         try:
-            self.wm_class = args[0]
-            self.wm_name = args[1]
-            self.res_name = args[2]
-        except IndexError:
-            print("Received less arguments than expected.")
-
-    def is_script_loaded(self):
-        try:
-            return self.kwin_dbus_svc_obj.call_method("isScriptLoaded", self.KWIN_SCRIPT_NAME)
-        except self.DBusException:
-            print(f"PLASMA_CTX: Error occurred while calling 'isScriptLoaded' method")
-            return False
-
-    def load_script(self):
-        try:
-            # with open("kwin_script.js", 'r', encoding='UTF-8') as file:
-            #     script_content = file.read()
-            self.kwin_dbus_svc_obj.call_method("loadScript", self.KWIN_SCRIPT_DATA)
-        except self.DBusException as dbus_error:
-            print(f"PLASMA_CTX: Error occurred while calling 'loadScript' method:\n\t{dbus_error}")
-
-    def start_script(self):
-        try:
-            self.kwin_dbus_svc_obj.call_method("start", self.KWIN_SCRIPT_NAME)
-        except self.DBusException as dbus_error:
-            print(f"PLASMA_CTX: Error occurred while calling 'start' method:\n\t{dbus_error}")
-
-    def unload_script(self):
-        try:
-            self.kwin_dbus_svc_obj.call_method("unload", self.KWIN_SCRIPT_NAME)
-        except self.DBusException as dbus_error:
-            print(f"PLASMA_CTX: Error occurred while calling 'unload' method:\n\t{dbus_error}")
-
-    def connect(self):
-        # Subscribe to window changes
-        self.kyzr_dbus_svc_obj.connect_to_signal('WindowChanged', self.window_changed_handler)
-
-    def disconnect(self):
-        self.kyzr_dbus_svc_obj.disconnect_from_signal('WindowChanged', self.window_changed_handler)
-        self.unload_script()
-
+            self.kwin_dbus_svc_proc.terminate()
+            self.kwin_dbus_svc_proc.wait()
+        except OSError as os_error:
+            debug(f'Error when terminating KWin script process:\n\t{os_error}')
+            # pass
 
 
 class Wl_GNOME_WindowContext(WindowContextProviderInterface):
