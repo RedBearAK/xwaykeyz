@@ -78,6 +78,7 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
 
     def __init__(self):
         import subprocess
+        import os
         import dbus
         from dbus.exceptions import DBusException
 
@@ -86,7 +87,8 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
 
         try:
             # pylint: disable=consider-using-with
-            self.kwin_dbus_svc_proc = subprocess.Popen(["python", "./kwin_dbus_service.py"])
+            script_path = os.path.join(os.path.dirname(__file__), "kwin_dbus_service.py")
+            self.kwin_dbus_svc_proc = subprocess.Popen(["python", script_path])
             self.kwin_dbus_svc_proc.poll()
             if self.kwin_dbus_svc_proc.poll() is not None:
                 raise subprocess.SubprocessError('The KWin service script failed to start')
