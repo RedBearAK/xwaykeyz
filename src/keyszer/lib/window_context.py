@@ -133,8 +133,8 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
 
         try:
             # Convert to native Python dict type from 'dbus.Dict()' type
-            # window_info_dct     = dict(self.iface_toshy_svc.GetActiveWindow())
-            window_info_dct     = self.iface_toshy_svc.GetActiveWindow()
+            window_info_dct     = dict(self.iface_toshy_svc.GetActiveWindow())
+            # window_info_dct     = self.iface_toshy_svc.GetActiveWindow()
             debug(f'What is coming from KDE D-Bus service:\n\t{window_info_dct = }')
             # Convert to native Python string types from 'dbus.String()' type:
             # native_dict = {str(key): str(value) for key, value in dbus_dict.items()}
