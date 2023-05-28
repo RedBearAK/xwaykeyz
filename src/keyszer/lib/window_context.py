@@ -87,16 +87,16 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         self.DBusException      = DBusException
         self.session_bus        = dbus.SessionBus()
 
-        try:
-            # pylint: disable=consider-using-with
-            script_path = os.path.join(os.path.dirname(__file__), "kwin_dbus_service.py")
-            self.kwin_dbus_svc_proc = subprocess.Popen(["python", script_path])
-            self.kwin_dbus_svc_proc.poll()
-            if self.kwin_dbus_svc_proc.poll() is not None:
-                raise subprocess.SubprocessError('The KWin service script failed to start')
-            time.sleep(3)
-        except subprocess.SubprocessError as proc_error:
-            debug(f'Problem starting the KWin service script.\n\t{proc_error}')
+        # try:
+        #     # pylint: disable=consider-using-with
+        #     script_path = os.path.join(os.path.dirname(__file__), "kwin_dbus_service.py")
+        #     self.kwin_dbus_svc_proc = subprocess.Popen(["python", script_path])
+        #     self.kwin_dbus_svc_proc.poll()
+        #     if self.kwin_dbus_svc_proc.poll() is not None:
+        #         raise subprocess.SubprocessError('The KWin service script failed to start')
+        #     time.sleep(3)
+        # except subprocess.SubprocessError as proc_error:
+        #     debug(f'Problem starting the KWin service script.\n\t{proc_error}')
 
         try:
             self.proxy_kwin_script  = self.session_bus.get_object(  "org.kde.KWin",
@@ -112,16 +112,30 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
             error(f'{e}')
             sys.exit(1)
 
+        # try:
+        #     self.proxy_kyzr_svc     = self.session_bus.get_object( "org.keyszer.Keyszer",
+        #                                                     "/org/keyszer/Keyszer")
+        # except self.DBusException as dbus_error:
+        #     error(f'DBusException with proxy_kyzr:\n\t{dbus_error}')
+        # try:
+        #     self.iface_kyzr_svc     = dbus.Interface(   self.proxy_kyzr_svc,
+        #                                                 "org.keyszer.Keyszer")
+        # except self.DBusException as dbus_error:
+        #     error(f"DBusException with iface_kyzr:\n\t{dbus_error}")
+        # except AttributeError as e:
+        #     error(f'{e}')
+        #     sys.exit(1)
+
         try:
-            self.proxy_kyzr_svc     = self.session_bus.get_object( "org.keyszer.Keyszer",
-                                                            "/org/keyszer/Keyszer")
+            self.proxy_toshy_svc    = self.session_bus.get_object( "org.toshy.Toshy",
+                                                            "/org/toshy/Toshy")
         except self.DBusException as dbus_error:
-            error(f'DBusException with proxy_kyzr:\n\t{dbus_error}')
+            error(f'DBusException with proxy_toshy_svc:\n\t{dbus_error}')
         try:
-            self.iface_kyzr_svc     = dbus.Interface(   self.proxy_kyzr_svc,
-                                                        "org.keyszer.Keyszer")
+            self.iface_toshy_svc    = dbus.Interface(   self.proxy_toshy_svc,
+                                                        "org.toshy.Toshy")
         except self.DBusException as dbus_error:
-            error(f"DBusException with iface_kyzr:\n\t{dbus_error}")
+            error(f"DBusException with iface_toshy_svc:\n\t{dbus_error}")
         except AttributeError as e:
             error(f'{e}')
             sys.exit(1)
@@ -147,7 +161,7 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         """
 
         try:
-            window_info     = self.iface_kyzr_svc.GetActiveWindow()
+            window_info     = self.iface_toshy_svc.GetActiveWindow()
             debug(f'What is coming from KDE D-Bus service:\n\t{window_info = }')
             if len(window_info) < 3:
                 error(f'Error: Incomplete window information returned from KDE Plasma window context D-Bus service')
@@ -161,13 +175,13 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
 
         return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
 
-    def stop(self):
-        try:
-            self.kwin_dbus_svc_proc.terminate()
-            self.kwin_dbus_svc_proc.wait()
-        except OSError as os_error:
-            debug(f'Error when terminating KWin script process:\n\t{os_error}')
-            # pass
+    # def stop(self):
+    #     try:
+    #         self.kwin_dbus_svc_proc.terminate()
+    #         self.kwin_dbus_svc_proc.wait()
+    #     except OSError as os_error:
+    #         debug(f'Error when terminating KWin script process:\n\t{os_error}')
+    #         # pass
 
 
 class Wl_GNOME_WindowContext(WindowContextProviderInterface):
