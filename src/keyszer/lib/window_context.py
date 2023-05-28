@@ -139,6 +139,10 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
             # Convert to native Python string types from 'dbus.String()' type:
             # native_dict = {str(key): str(value) for key, value in dbus_dict.items()}
             new_wdw_info_dct    = {str(key): str(value) for key, value in window_info_dct.items()}
+            debug(f'Converted D-Bus dict:\n\t{new_wdw_info_dct = }')
+            debug(f"{new_wdw_info_dct.get('caption', '')}")
+            debug(f"{new_wdw_info_dct.get('resource_class', '')}")
+            debug(f"{new_wdw_info_dct.get('resource_name', '')}")
             # 'caption' is X11/Xorg WM_NAME equivalent
             self.wm_name        = new_wdw_info_dct.get('caption', '')
             # 'resourceClass' is X11/Xorg WM_CLASS equivalent
