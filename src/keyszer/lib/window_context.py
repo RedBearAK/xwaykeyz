@@ -78,25 +78,13 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
     """Window context provider object for Wayland+KDE_Plasma environments"""
 
     def __init__(self):
-        import os
         import dbus
-        import time
-        import subprocess
         from dbus.exceptions import DBusException
+        from dbus import Dictionary as DBusDict
 
         self.DBusException      = DBusException
+        self.DBusDict           = DBusDict
         self.session_bus        = dbus.SessionBus()
-
-        # try:
-        #     # pylint: disable=consider-using-with
-        #     script_path = os.path.join(os.path.dirname(__file__), "kwin_dbus_service.py")
-        #     self.kwin_dbus_svc_proc = subprocess.Popen(["python", script_path])
-        #     self.kwin_dbus_svc_proc.poll()
-        #     if self.kwin_dbus_svc_proc.poll() is not None:
-        #         raise subprocess.SubprocessError('The KWin service script failed to start')
-        #     time.sleep(3)
-        # except subprocess.SubprocessError as proc_error:
-        #     debug(f'Problem starting the KWin service script.\n\t{proc_error}')
 
         try:
             self.proxy_kwin_script  = self.session_bus.get_object(  "org.kde.KWin",
@@ -111,20 +99,6 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         except AttributeError as e:
             error(f'{e}')
             sys.exit(1)
-
-        # try:
-        #     self.proxy_kyzr_svc     = self.session_bus.get_object( "org.keyszer.Keyszer",
-        #                                                     "/org/keyszer/Keyszer")
-        # except self.DBusException as dbus_error:
-        #     error(f'DBusException with proxy_kyzr:\n\t{dbus_error}')
-        # try:
-        #     self.iface_kyzr_svc     = dbus.Interface(   self.proxy_kyzr_svc,
-        #                                                 "org.keyszer.Keyszer")
-        # except self.DBusException as dbus_error:
-        #     error(f"DBusException with iface_kyzr:\n\t{dbus_error}")
-        # except AttributeError as e:
-        #     error(f'{e}')
-        #     sys.exit(1)
 
         try:
             self.proxy_toshy_svc    = self.session_bus.get_object( "org.toshy.Toshy",
@@ -151,8 +125,8 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
     def get_supported_environments(cls):
         # This class supports the KDE Plasma environment on Wayland
         return [
-            ('wayland', 'plasma'),
-            ('wayland', 'kde')
+            ('wayland', 'kde'),
+            ('wayland', 'plasma')
         ]
 
     def get_window_context(self):
@@ -161,30 +135,23 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         """
 
         try:
-            window_info     = self.iface_toshy_svc.GetActiveWindow()
-            debug(f'What is coming from KDE D-Bus service:\n\t{window_info = }')
-            if len(window_info) < 3:
-                error(f'Error: Incomplete window information returned from KDE Plasma window context D-Bus service')
-                return NO_CONTEXT_WAS_ERROR
-            # 'caption' is WM_NAME equivalent
-            self.wm_name    = str(window_info[0] or '')
-            # 'resourceClass' is WM_CLASS equivalent
-            self.wm_class   = str(window_info[1] or '')
-            # 'resourceName' has no equivalent
-            self.res_name   = str(window_info[2] or '')
+            # Convert to native Python dict type from 'dbus.Dict()' type
+            window_info_dct     = dict(self.iface_toshy_svc.GetActiveWindow())
+            debug(f'What is coming from KDE D-Bus service:\n\t{window_info_dct = }')
+            # Convert to native Python string types from 'dbus.String()' type:
+            # native_dict = {str(key): str(value) for key, value in dbus_dict.items()}
+            new_wdw_info_dct    = {str(key): str(value) for key, value in window_info_dct.items()}
+            # 'caption' is X11/Xorg WM_NAME equivalent
+            self.wm_name        = new_wdw_info_dct.get('caption', '')
+            # 'resourceClass' is X11/Xorg WM_CLASS equivalent
+            self.wm_class       = new_wdw_info_dct.get('resource_class', '')
+            # 'resourceName' has no X11/Xorg equivalent (tends to be process name?)
+            self.res_name       = new_wdw_info_dct.get('resource_name', '')
         except self.DBusException as dbus_error:
             error(f'Error returned from KDE Plasma window context D-Bus service:\n\t{dbus_error}')
             return NO_CONTEXT_WAS_ERROR
 
         return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
-
-    # def stop(self):
-    #     try:
-    #         self.kwin_dbus_svc_proc.terminate()
-    #         self.kwin_dbus_svc_proc.wait()
-    #     except OSError as os_error:
-    #         debug(f'Error when terminating KWin script process:\n\t{os_error}')
-    #         # pass
 
 
 class Wl_GNOME_WindowContext(WindowContextProviderInterface):
@@ -283,7 +250,7 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
                 f'\n\t\t(https://extensions.gnome.org/extension/5592/focused-window-d-bus/)'
                 f'\n\t    {self.ext_uuid_windowsext}:'
                 f'\n\t\t(https://extensions.gnome.org/extension/4974/window-calls-extended/)'
-                f'\n\t    {self.ext_uuid_xremap}:'
+                f'\n\t    {self.ext_uuid_xremap} (supports pre-GNOME 41.x):'
                 f'\n\t\t(https://extensions.gnome.org/extension/5060/xremap/)')
         error(f'Install "Extension Manager" from Flathub to manage GNOME Shell extensions')
         error(f'############################################################################')
