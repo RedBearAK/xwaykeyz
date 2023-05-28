@@ -118,9 +118,6 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         self.wm_name            = None
         self.res_name           = None
 
-    def __del__(self):
-        self.stop()
-
     @classmethod
     def get_supported_environments(cls):
         # This class supports the KDE Plasma environment on Wayland
