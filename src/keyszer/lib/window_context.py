@@ -166,8 +166,11 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
             if len(window_info) < 3:
                 error(f'Error: Incomplete window information returned from KDE Plasma window context D-Bus service')
                 return NO_CONTEXT_WAS_ERROR
-            self.wm_class   = str(window_info[0] or '')
-            self.wm_name    = str(window_info[1] or '')
+            # 'caption' is WM_NAME equivalent
+            self.wm_name    = str(window_info[0] or '')
+            # 'resourceClass' is WM_CLASS equivalent
+            self.wm_class   = str(window_info[1] or '')
+            # 'resourceName' has no equivalent
             self.res_name   = str(window_info[2] or '')
         except self.DBusException as dbus_error:
             error(f'Error returned from KDE Plasma window context D-Bus service:\n\t{dbus_error}')
