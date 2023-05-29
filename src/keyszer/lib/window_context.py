@@ -80,29 +80,31 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
     def __init__(self):
         import dbus
         from dbus.exceptions import DBusException
-        from dbus import Dictionary as DBusDict
 
         self.DBusException      = DBusException
-        self.DBusDict           = DBusDict
         self.session_bus        = dbus.SessionBus()
 
-        try:
-            self.proxy_kwin_script  = self.session_bus.get_object(  "org.kde.KWin",
-                                                                    "/Scripting")
-        except self.DBusException as dbus_error:
-            error(f'DBusException with proxy_kwin_script:\n\t{dbus_error}')
-        try:
-            self.iface_kwin_script  = dbus.Interface(   self.proxy_kwin_script,
-                                                        "org.kde.kwin.Scripting")
-        except self.DBusException as dbus_error:
-            error(f"DBusException with iface_kwin_script:\n\t{dbus_error}")
-        except AttributeError as e:
-            error(f'{e}')
-            sys.exit(1)
+        self.wm_class           = None
+        self.wm_name            = None
+        self.res_name           = None
+
+        # try:
+        #     self.proxy_kwin_script  = self.session_bus.get_object(  "org.kde.KWin",
+        #                                                             "/Scripting")
+        # except self.DBusException as dbus_error:
+        #     error(f'DBusException with proxy_kwin_script:\n\t{dbus_error}')
+        # try:
+        #     self.iface_kwin_script  = dbus.Interface(   self.proxy_kwin_script,
+        #                                                 "org.kde.kwin.Scripting")
+        # except self.DBusException as dbus_error:
+        #     error(f"DBusException with iface_kwin_script:\n\t{dbus_error}")
+        # except AttributeError as e:
+        #     error(f'{e}')
+        #     sys.exit(1)
 
         try:
-            self.proxy_toshy_svc    = self.session_bus.get_object( "org.toshy.Toshy",
-                                                            "/org/toshy/Toshy")
+            self.proxy_toshy_svc    = self.session_bus.get_object(  "org.toshy.Toshy",
+                                                                    "/org/toshy/Toshy")
         except self.DBusException as dbus_error:
             error(f'DBusException with proxy_toshy_svc:\n\t{dbus_error}')
         try:
@@ -113,10 +115,6 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         except AttributeError as e:
             error(f'{e}')
             sys.exit(1)
-
-        self.wm_class           = None
-        self.wm_name            = None
-        self.res_name           = None
 
     @classmethod
     def get_supported_environments(cls):
@@ -130,21 +128,20 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         """
         Gets window context info from D-Bus service fed by KWin script
         """
-
         try:
             # Convert to native Python dict type from 'dbus.Dictionary()' type
             window_info_dct     = dict(self.iface_toshy_svc.GetActiveWindow())
-            # native_dict = {str(key): str(value) for key, value in dbus_dict.items()}
-            new_wdw_info_dct    = {str(key): str(value) for key, value in window_info_dct.items()}
-            # 'caption' is X11/Xorg WM_NAME equivalent
-            self.wm_name        = new_wdw_info_dct.get('caption', '')
-            # 'resourceClass' is X11/Xorg WM_CLASS equivalent
-            self.wm_class       = new_wdw_info_dct.get('resource_class', '')
-            # 'resourceName' has no X11/Xorg equivalent (tends to be process name?)
-            self.res_name       = new_wdw_info_dct.get('resource_name', '')
         except self.DBusException as dbus_error:
             error(f'Error returned from KDE Plasma window context D-Bus service:\n\t{dbus_error}')
             return NO_CONTEXT_WAS_ERROR
+        # native_dict = {str(key): str(value) for key, value in dbus_dict.items()}
+        new_wdw_info_dct    = {str(key): str(value) for key, value in window_info_dct.items()}
+        # 'caption' is X11/Xorg WM_NAME equivalent
+        self.wm_name        = new_wdw_info_dct.get('caption', '')
+        # 'resourceClass' is X11/Xorg WM_CLASS equivalent
+        self.wm_class       = new_wdw_info_dct.get('resource_class', '')
+        # 'resourceName' has no X11/Xorg equivalent (tends to be process name?)
+        self.res_name       = new_wdw_info_dct.get('resource_name', '')
 
         return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
 
