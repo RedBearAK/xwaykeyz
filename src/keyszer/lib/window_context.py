@@ -134,14 +134,8 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         try:
             # Convert to native Python dict type from 'dbus.Dictionary()' type
             window_info_dct     = dict(self.iface_toshy_svc.GetActiveWindow())
-            # debug(f'What is coming from KDE D-Bus service:\n\t{window_info_dct = }')
-            # Convert to native Python string types from 'dbus.String()' types:
             # native_dict = {str(key): str(value) for key, value in dbus_dict.items()}
             new_wdw_info_dct    = {str(key): str(value) for key, value in window_info_dct.items()}
-            debug(f'Converted D-Bus dict:\n\t{new_wdw_info_dct = }')
-            debug(f"{new_wdw_info_dct.get('caption', '') = }")
-            debug(f"{new_wdw_info_dct.get('resource_class', '') = }")
-            debug(f"{new_wdw_info_dct.get('resource_name', '') = }")
             # 'caption' is X11/Xorg WM_NAME equivalent
             self.wm_name        = new_wdw_info_dct.get('caption', '')
             # 'resourceClass' is X11/Xorg WM_CLASS equivalent
