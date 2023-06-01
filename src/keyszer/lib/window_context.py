@@ -78,6 +78,7 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
     """Window context provider object for Wayland+KDE_Plasma environments"""
 
     def __init__(self):
+        import time
         import dbus
         from dbus.exceptions import DBusException
 
@@ -88,8 +89,14 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         self.wm_name            = None
         self.res_name           = None
 
-        proxy_toshy_svc         = session_bus.get_object("org.toshy.Toshy", "/org/toshy/Toshy")
-        self.iface_toshy_svc    = dbus.Interface(proxy_toshy_svc, "org.toshy.Toshy")
+        while True:
+            try:
+                proxy_toshy_svc         = session_bus.get_object("org.toshy.Toshy", "/org/toshy/Toshy")
+                self.iface_toshy_svc    = dbus.Interface(proxy_toshy_svc, "org.toshy.Toshy")
+                break
+            except self.DBusException as dbus_error:
+                error(f'Error getting Toshy D-Bus service interface.\n\t{dbus_error}')
+            time.sleep(3)
 
     @classmethod
     def get_supported_environments(cls):
@@ -132,9 +139,9 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
         session_bus             = dbus.SessionBus()
 
         path_focused_wdw        = "/org/gnome/shell/extensions/FocusedWindow"
-        obj_focused_wdc         = "org.gnome.shell.extensions.FocusedWindow"
+        obj_focused_wdw         = "org.gnome.shell.extensions.FocusedWindow"
         proxy_focused_wdw       = session_bus.get_object("org.gnome.Shell", path_focused_wdw)
-        self.iface_focused_wdw  = dbus.Interface(proxy_focused_wdw, obj_focused_wdc)
+        self.iface_focused_wdw  = dbus.Interface(proxy_focused_wdw, obj_focused_wdw)
 
         path_windowsext         = "/org/gnome/Shell/Extensions/WindowsExt"
         obj_windowsext          = "org.gnome.Shell.Extensions.WindowsExt"
