@@ -20,6 +20,26 @@ NO_CONTEXT_WAS_ERROR = {"wm_class": "", "wm_name": "", "x_error": True}
 class WindowContextProviderInterface(abc.ABC):
     """Abstract base class for all window context provider classes"""
 
+    @classmethod
+    @abc.abstractmethod
+    def get_supported_environments(cls):
+        """
+        This method should return a list of environments that the subclass 
+        supports.
+
+        Each environment should be represented as a tuple. For example, if 
+        a subclass supports the environments 'x11' and 'wayland', this method 
+        would return [('x11',), ('wayland',)].
+
+        If an environment is specific to a certain desktop environment, the 
+        desktop environment should be included in the tuple. For example, if 
+        a subclass supports the 'wayland' environment specifically on the 
+        'gnome' desktop, this method would return [('wayland', 'gnome')].
+
+        :returns: A list of tuples, each representing an environment supported 
+        by the subclass.
+        """
+
     @abc.abstractmethod
     def get_window_context(self):
         """
@@ -51,26 +71,6 @@ class WindowContextProviderInterface(abc.ABC):
         NO_CONTEXT_WAS_ERROR = {"wm_class": "", "wm_name": "", "x_error": True}
 
         :returns: A dictionary containing window context information.
-        """
-
-    @classmethod
-    @abc.abstractmethod
-    def get_supported_environments(cls):
-        """
-        This method should return a list of environments that the subclass 
-        supports.
-
-        Each environment should be represented as a tuple. For example, if 
-        a subclass supports the environments 'x11' and 'wayland', this method 
-        would return [('x11',), ('wayland',)].
-
-        If an environment is specific to a certain desktop environment, the 
-        desktop environment should be included in the tuple. For example, if 
-        a subclass supports the 'wayland' environment specifically on the 
-        'gnome' desktop, this method would return [('wayland', 'gnome')].
-
-        :returns: A list of tuples, each representing an environment supported 
-        by the subclass.
         """
 
 
