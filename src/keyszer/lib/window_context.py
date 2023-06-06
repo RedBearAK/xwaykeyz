@@ -29,12 +29,12 @@ class WindowContextProviderInterface(abc.ABC):
 
         Each environment should be represented as a tuple. For example, if 
         a subclass supports the environments 'x11' and 'wayland', this method 
-        would return [('x11',), ('wayland',)].
+        should return [('x11', None), ('wayland', None)].
 
         If an environment is specific to a certain desktop environment, the 
         desktop environment should be included in the tuple. For example, if 
         a subclass supports the 'wayland' environment specifically on the 
-        'gnome' desktop, this method would return [('wayland', 'gnome')].
+        'gnome' desktop, this method should return [('wayland', 'gnome')].
 
         :returns: A list of tuples, each representing an environment supported 
         by the subclass.
