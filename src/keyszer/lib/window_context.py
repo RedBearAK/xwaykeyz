@@ -1,6 +1,7 @@
 import abc
-import sys
+import dbus
 import json
+import time
 
 from typing import Dict
 
@@ -78,25 +79,40 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
     """Window context provider object for Wayland+KDE_Plasma environments"""
 
     def __init__(self):
-        import time
-        import dbus
+        # import time
+        # import dbus
         from dbus.exceptions import DBusException
 
+        self.dbus               = dbus
         self.DBusException      = DBusException
-        session_bus             = dbus.SessionBus()
+        self.session_bus        = dbus.SessionBus()
 
         self.wm_class           = None
         self.wm_name            = None
         self.res_name           = None
 
+        self.get_dbus_interface()
+        # while True:
+        #     try:
+        #         proxy_toshy_svc         = self.session_bus.get_object("org.toshy.Toshy", "/org/toshy/Toshy")
+        #         self.iface_toshy_svc    = dbus.Interface(proxy_toshy_svc, "org.toshy.Toshy")
+        #         break
+        #     except self.DBusException as dbus_error:
+        #         error(f'Error getting Toshy D-Bus service interface.\n\t{dbus_error}')
+        #     time.sleep(3)
+
+    def get_dbus_interface(self):
+        """Refresh the D-Bus object reference"""
+        # import dbus
+        # import time
         while True:
             try:
-                proxy_toshy_svc         = session_bus.get_object("org.toshy.Toshy", "/org/toshy/Toshy")
-                self.iface_toshy_svc    = dbus.Interface(proxy_toshy_svc, "org.toshy.Toshy")
+                proxy_toshy_svc = self.session_bus.get_object("org.toshy.Toshy", "/org/toshy/Toshy")
+                self.iface_toshy_svc = dbus.Interface(proxy_toshy_svc, "org.toshy.Toshy")
                 break
             except self.DBusException as dbus_error:
                 error(f'Error getting Toshy D-Bus service interface.\n\t{dbus_error}')
-            time.sleep(3)
+                time.sleep(3)
 
     @classmethod
     def get_supported_environments(cls):
@@ -112,10 +128,16 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         """
         try:
             # Convert to native Python dict type from 'dbus.Dictionary()' type
-            window_info_dct     = dict(self.iface_toshy_svc.GetActiveWindow())
+            window_info_dct = dict(self.iface_toshy_svc.GetActiveWindow())
         except self.DBusException as dbus_error:
             error(f'Error returned from KDE Plasma window context D-Bus service:\n\t{dbus_error}')
-            return NO_CONTEXT_WAS_ERROR
+            self.get_dbus_interface()
+            try:
+                # Convert to native Python dict type from 'dbus.Dictionary()' type
+                window_info_dct = dict(self.iface_toshy_svc.GetActiveWindow())
+            except self.DBusException as dbus_error:
+                error(f'Error returned from KDE Plasma window context D-Bus service:\n\t{dbus_error}')
+                return NO_CONTEXT_WAS_ERROR
         # native_dict = {str(key): str(value) for key, value in dbus_dict.items()}
         new_wdw_info_dct    = {str(key): str(value) for key, value in window_info_dct.items()}
         # 'caption' is X11/Xorg WM_NAME equivalent
@@ -132,7 +154,7 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
     """Window context provider object for Wayland+GNOME environments"""
 
     def __init__(self):
-        import dbus
+        # import dbus
         from dbus.exceptions import DBusException
 
         self.DBusException      = DBusException
