@@ -103,16 +103,15 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
 
     def get_dbus_interface(self):
         """Refresh the D-Bus object reference"""
-        # import dbus
-        # import time
-        while True:
-            try:
-                proxy_toshy_svc = self.session_bus.get_object("org.toshy.Toshy", "/org/toshy/Toshy")
-                self.iface_toshy_svc = dbus.Interface(proxy_toshy_svc, "org.toshy.Toshy")
-                break
-            except self.DBusException as dbus_error:
-                error(f'Error getting Toshy D-Bus service interface.\n\t{dbus_error}')
-                time.sleep(3)
+        # while True:
+        time.sleep(3)
+        try:
+            proxy_toshy_svc = self.session_bus.get_object("org.toshy.Toshy", "/org/toshy/Toshy")
+            self.iface_toshy_svc = dbus.Interface(proxy_toshy_svc, "org.toshy.Toshy")
+            # break
+        except self.DBusException as dbus_error:
+            error(f'Error getting Toshy D-Bus service interface.\n\t{dbus_error}')
+                # time.sleep(3)
 
     @classmethod
     def get_supported_environments(cls):
