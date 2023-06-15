@@ -115,7 +115,8 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
             # Convert to native Python dict type from 'dbus.Dictionary()' type
             window_info_dct     = dict(self.iface_toshy_svc.GetActiveWindow())
         except self.DBusException as dbus_error:
-            error(f'Error returned from KDE Plasma window context D-Bus service:\n\t{dbus_error}')
+            error(f'Toshy D-Bus service interface stale?:\n\t{dbus_error}')
+            debug(f'Trying to refresh Toshy D-Bus service interface...')
             try:
                 self.proxy_toshy_svc = self.session_bus.get_object("org.toshy.Toshy", "/org/toshy/Toshy")
                 self.iface_toshy_svc = dbus.Interface(self.proxy_toshy_svc, "org.toshy.Toshy")
