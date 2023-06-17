@@ -12,7 +12,7 @@ from .config_api import _THROTTLES
 VIRT_DEVICE_PREFIX = "Keyszer (virtual)"
 
 # Remove all buttons so udev doesn't think keyszer is a joystick
-_KEYBOARD_KEYS = ecodes.keys.keys() - ecodes.BTN
+_KEYBOARD_KEYS: set = ecodes.keys.keys() - ecodes.BTN
 
 # But we want mouse buttons, so let's enumerate those and add them
 # back into the set of buttons we'll watch and use
@@ -34,6 +34,20 @@ _MOUSE_BUTTONS = {
     276: "BTN_EXTRA",
 }
 _KEYBOARD_KEYS.update(_MOUSE_BUTTONS)
+
+# We also want trackpad/touchpad buttons, so let's enumerate those and add them
+# back into the set of buttons we'll watch and use
+_TOUCHPAD_BUTTONS = {
+    330: ["BTN_TOOL_FINGER", "BTN_TOUCHPAD"],                   # touchpad click
+    333: "BTN_TOOL_DOUBLETAP",                                  # touchpad double tap
+    334: "BTN_TOOL_TRIPLETAP",                                  # touchpad triple tap
+    335: "BTN_TOOL_QUADTAP",                                    # touchpad quadruple tap
+    336: "BTN_TOOL_QUINTTAP",                                   # touchpad quintuple tap
+    337: "BTN_TOOL_TRIPLETAP2",                                 # second triple tap on a touchpad
+    338: "BTN_TOOL_QUADTAP2",                                   # second quadruple tap on a touchpad
+    339: "BTN_TOOL_QUINTTAP2",                                  # second quintuple tap on a touchpad
+}
+_KEYBOARD_KEYS.update(_TOUCHPAD_BUTTONS)
 
 _uinput = None
 
