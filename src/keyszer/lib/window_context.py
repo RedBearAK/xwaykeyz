@@ -90,10 +90,15 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         self.wm_name            = None
         self.res_name           = None
 
+        self.toshy_dbus_obj     = 'org.toshy.Toshy'
+        self.toshy_dbus_path    = '/org/toshy/Toshy'
+
         while True:
             try:
-                self.proxy_toshy_svc = self.session_bus.get_object("org.toshy.Toshy", "/org/toshy/Toshy")
-                self.iface_toshy_svc = dbus.Interface(self.proxy_toshy_svc, "org.toshy.Toshy")
+                self.proxy_toshy_svc = self.session_bus.get_object( self.toshy_dbus_obj,
+                                                                    self.toshy_dbus_path)
+                self.iface_toshy_svc = dbus.Interface(self.proxy_toshy_svc,
+                                                        self.toshy_dbus_obj)
                 break
             except self.DBusException as dbus_error:
                 error(f'Error getting Toshy D-Bus service interface.\n\t{dbus_error}')
@@ -118,8 +123,10 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
             error(f'Toshy D-Bus service interface stale?:\n\t{dbus_error}')
             error(f'Trying to refresh Toshy D-Bus service interface...')
             try:
-                self.proxy_toshy_svc = self.session_bus.get_object("org.toshy.Toshy", "/org/toshy/Toshy")
-                self.iface_toshy_svc = dbus.Interface(self.proxy_toshy_svc, "org.toshy.Toshy")
+                self.proxy_toshy_svc = self.session_bus.get_object( self.toshy_dbus_obj,
+                                                                    self.toshy_dbus_path)
+                self.iface_toshy_svc = dbus.Interface(  self.proxy_toshy_svc,
+                                                        self.toshy_dbus_obj)
             except self.DBusException as dbus_error:
                 error(f'Error refreshing Toshy D-Bus service interface.\n\t{dbus_error}')
             try:
@@ -138,6 +145,8 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         self.wm_class       = new_wdw_info_dct.get('resource_class', '')
         # 'resourceName' has no X11/Xorg equivalent (tends to be process name?)
         self.res_name       = new_wdw_info_dct.get('resource_name', '')
+
+        debug(f"KDE_DBUS_SVC: Using D-Bus interface '{self.toshy_dbus_obj}' for window context")
 
         return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
 
