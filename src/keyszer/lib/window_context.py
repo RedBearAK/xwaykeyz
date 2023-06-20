@@ -132,9 +132,9 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
             try:
                 # Convert to native Python dict type from 'dbus.Dictionary()' type
                 window_info_dct     = dict(self.iface_toshy_svc.GetActiveWindow())
-                error(f'Toshy D-Bus service interface restored!')
+                debug(f'Toshy D-Bus service interface restored!')
             except self.DBusException as dbus_error: 
-                error(f'Error returned from KDE Plasma window context D-Bus service:\n\t{dbus_error}')
+                debug(f'Error returned from KDE Plasma window context D-Bus service:\n\t{dbus_error}')
                 return NO_CONTEXT_WAS_ERROR
 
         # native_dict = {str(key): str(value) for key, value in dbus_dict.items()}
