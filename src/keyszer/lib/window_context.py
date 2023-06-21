@@ -101,7 +101,7 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
                                                         self.toshy_dbus_obj)
                 break
             except self.DBusException as dbus_error:
-                error(f'Error getting Toshy D-Bus service interface.\n\t{dbus_error}')
+                error(f'Error getting Toshy KDE D-Bus service interface.\n\t{dbus_error}')
             time.sleep(3)
 
     @classmethod
@@ -120,21 +120,21 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
             # Convert to native Python dict type from 'dbus.Dictionary()' type
             window_info_dct     = dict(self.iface_toshy_svc.GetActiveWindow())
         except self.DBusException as dbus_error:
-            error(f'Toshy D-Bus service interface stale?:\n\t{dbus_error}')
-            error(f'Trying to refresh Toshy D-Bus service interface...')
+            error(f'Toshy KDE D-Bus service interface stale?:\n\t{dbus_error}')
+            error(f'Trying to refresh Toshy KDE D-Bus service interface...')
             try:
                 self.proxy_toshy_svc = self.session_bus.get_object( self.toshy_dbus_obj,
                                                                     self.toshy_dbus_path)
                 self.iface_toshy_svc = dbus.Interface(  self.proxy_toshy_svc,
                                                         self.toshy_dbus_obj)
             except self.DBusException as dbus_error:
-                error(f'Error refreshing Toshy D-Bus service interface.\n\t{dbus_error}')
+                error(f'Error refreshing Toshy KDE D-Bus service interface.\n\t{dbus_error}')
             try:
                 # Convert to native Python dict type from 'dbus.Dictionary()' type
                 window_info_dct     = dict(self.iface_toshy_svc.GetActiveWindow())
-                debug(f'Toshy D-Bus service interface restored!')
+                debug(f'Toshy KDE D-Bus service interface restored!')
             except self.DBusException as dbus_error: 
-                debug(f'Error returned from KDE Plasma window context D-Bus service:\n\t{dbus_error}')
+                debug(f'Error returned from Toshy KDE D-Bus service:\n\t{dbus_error}')
                 return NO_CONTEXT_WAS_ERROR
 
         # native_dict = {str(key): str(value) for key, value in dbus_dict.items()}
