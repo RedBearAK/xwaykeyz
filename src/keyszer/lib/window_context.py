@@ -310,12 +310,18 @@ class Xorg_WindowContext(WindowContextProviderInterface):
         # Import Xlib modules here
         from Xlib.xobject.drawable import Window
         from Xlib.display import Display
-        from Xlib.error import (ConnectionClosedError, DisplayConnectionError, DisplayNameError)
+        from Xlib.error import (
+                            ConnectionClosedError,
+                            DisplayConnectionError,
+                            DisplayNameError,
+                            BadWindow
+                            )
         self.Window                 = Window
         self.Display                = Display
         self.ConnectionClosedError  = ConnectionClosedError
         self.DisplayConnectionError = DisplayConnectionError
         self.DisplayNameError       = DisplayNameError
+        self.BadWindow              = BadWindow
 
     @classmethod
     def get_supported_environments(cls):
@@ -363,9 +369,18 @@ class Xorg_WindowContext(WindowContextProviderInterface):
         if not isinstance(window, self.Window):
             return None
 
-        # use _NET_WM_NAME string instead of WM_NAME to bypass (COMPOUND_TEXT) encoding problems
-        wmname = window.get_full_text_property(self._display.get_atom("_NET_WM_NAME"))
-        wmclass = window.get_wm_class()
+        # # use _NET_WM_NAME string instead of WM_NAME to bypass (COMPOUND_TEXT) encoding problems
+        # wmname = window.get_full_text_property(self._display.get_atom("_NET_WM_NAME"))
+        # wmclass = window.get_wm_class()
+
+        try:
+            # use _NET_WM_NAME string instead of WM_NAME to bypass (COMPOUND_TEXT) encoding problems
+            wmname = window.get_full_text_property(self._display.get_atom("_NET_WM_NAME"))
+            wmclass = window.get_wm_class()
+        except self.BadWindow as xerror:  # Catch the BadWindow error here
+            error(xerror)
+            return None  # or do some appropriate handling here
+
         # workaround for Java app
         # https://github.com/JetBrains/jdk8u_jdk/blob/master/src/solaris/classes/sun/awt/X11/XFocusProxyWindow.java#L35
         if (wmclass is None and wmname is None) or "FocusProxy" in (wmclass or ""):
