@@ -37,8 +37,7 @@ def has_access_to_uinput():
 
         setup_uinput()
         return True
-    except UInputError as input_err:
-        error(f"UInputError in has_access_to_uinput(): {input_err}")
+    except UInputError:
         return False
 
 
