@@ -341,9 +341,24 @@ class Xorg_WindowContext(WindowContextProviderInterface):
             input_focus = self._display.get_input_focus().focus
             window      = self.get_actual_window(input_focus)
             if window:
-                # use _NET_WM_NAME string instead of WM_NAME to 
-                # bypass (COMPOUND_TEXT) encoding problems
+                # We use _NET_WM_NAME string (UTF-8) here instead of WM_NAME to 
+                # bypass (COMPOUND_TEXT) encoding problems when non-ASCII
+                # characters are in the window name string.
+                # Xlib cannot deal with COMPOUND_TEXT encoding and ends up
+                # returning an empty "bytes object".
+                
+                # Older form: 
+                # wm_name = window.get_full_text_property(self._display.get_atom("_NET_WM_NAME"))
+                
+                # Mitigation for '_NET_WM_NAME' not being set at all(!), but WM_NAME is good:
+                # (this was observed in KDE 4.x application launcher/menu)
                 wm_name = window.get_full_text_property(self._display.get_atom("_NET_WM_NAME"))
+                if wm_name is None:
+                    error(f'Xlib _NET_WM_NAME query returned NoneType, falling back to WM_NAME')
+                    wm_name = window.get_wm_name()
+                    if isinstance(wm_name, bytes):
+                        error(f'Xlib WM_NAME query returned bytes object, falling back to error string')
+                        wm_name = "ERR: Xorg_WindowContext: Bad _NET_WM_NAME and WM_NAME"
                 pair    = window.get_wm_class()
                 if pair:
                     wm_class = str(pair[1])
