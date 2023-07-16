@@ -1,13 +1,13 @@
-# from ..xorg import get_xorg_context
 from ..models.key import Key
+from evdev import InputDevice
 from .window_context import WindowContextProvider
 
 
 class KeyContext:
-    def __init__(self, device, window_context):
+    def __init__(self, device: InputDevice, window_context: WindowContextProvider):
         self._X_ctx = None
         self._device = device
-        self._win_ctx_provider: WindowContextProvider = window_context
+        self._win_ctx_provider = window_context
 
     def _query_window_context(self):
         # cache this,  think it might be expensive
@@ -18,12 +18,14 @@ class KeyContext:
     @property
     def wm_class(self):
         self._query_window_context()
-        return self._X_ctx["wm_class"]
+        # guarantee string type returned
+        return self._X_ctx["wm_class"] or "ERR: KeyContext: NoneType in wm_class"
 
     @property
     def wm_name(self):
         self._query_window_context()
-        return self._X_ctx["wm_name"]
+        # guarantee string type returned
+        return self._X_ctx["wm_name"] or "ERR: KeyContext: NoneType in wm_name"
 
     @property
     def x_error(self):
@@ -32,7 +34,8 @@ class KeyContext:
 
     @property
     def device_name(self):
-        return self._device.name
+        # guarantee string type returned
+        return self._device.name or "ERR: KeyContext: NoneType in device_name"
 
     @property
     def capslock_on(self):
