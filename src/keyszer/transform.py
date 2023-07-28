@@ -266,7 +266,7 @@ def apply_modmap(keystate, context):
                     active_modmap = modmap
                     break
     if active_modmap and inkey in active_modmap:
-        debug(f"modmap: {inkey} => {active_modmap[inkey]} [{active_modmap.name}]")
+        debug(f"MODMAP: {inkey} => {active_modmap[inkey]} [{active_modmap.name}]")
         keystate.key = active_modmap[inkey]
 
 
