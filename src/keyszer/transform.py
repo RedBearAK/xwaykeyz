@@ -191,7 +191,7 @@ def suspend_or_resuspend_keys(timeout):
 def suspend_keys(timeout):
     global _suspend_timer
     global _last_suspend_timeout
-    debug("suspending keys", pressed_mods_not_exerted_on_output())
+    debug("suspending keys:", pressed_mods_not_exerted_on_output())
     states = [x for x in _key_states.values() if x.is_pressed()]
     for s in states:
         s.suspended = True
