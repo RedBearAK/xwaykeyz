@@ -576,6 +576,7 @@ def handle_commands(commands, key, action, ctx, input_combo=None):
             if callable(command):
                 # very likely we're just passing None forwards here but that OK
                 cmd_param_cnt = len(inspect.signature(command).parameters)
+                # if command doesn't take arguments, don't give it context object
                 if cmd_param_cnt == 0:
                     reset_mode = handle_commands(command(), key, action, ctx)
                 else:
@@ -602,13 +603,17 @@ def handle_commands(commands, key, action, ctx, input_combo=None):
             elif isinstance(command, Keymap):
                 keymap = command
                 if Trigger.IMMEDIATELY in keymap:
-                    handle_commands(keymap[Trigger.IMMEDIATELY], None, None)
+                    handle_commands(keymap[Trigger.IMMEDIATELY], None, None, ctx)
                 _active_keymaps = [keymap]
                 return False
+            #
+            # TODO: figure out if the block below is deprecated now that these functions return 
+            # inner functions instead of lists (but the inner functions still return lists):
+            #
             # to_keystrokes and unicode_keystrokes produce lists so
             # we'll just handle it recursively
             elif isinstance(command, list):
-                reset_mode = handle_commands(command, key, action)
+                reset_mode = handle_commands(command, key, action, ctx)
                 if reset_mode is False:
                     return False
             elif command is None:
