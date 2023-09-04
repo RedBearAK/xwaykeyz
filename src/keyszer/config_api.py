@@ -11,6 +11,7 @@ from pprint import pprint as pp
 
 from .lib.logger import error, debug
 from .lib import window_context
+from .lib.key_context import KeyContext
 from .models.action import Action
 from .models.combo import Combo, ComboHint
 from .models.trigger import Trigger
@@ -256,7 +257,7 @@ def to_US_keystrokes(s):
     """
     if len(s) > 100:
         raise TypingTooLong("`to_keystrokes` only supports strings of 100 characters or less")
-    def _to_keystrokes(ctx):
+    def _to_keystrokes(ctx: KeyContext):
         combo_list = []
         for c in s:
             if ord(c) > 127:
@@ -288,18 +289,38 @@ def _digits(n, base):
     return digits
 
 
+def insert_delay(msec):
+    """"Insert a millisecond delay in the output"""
+    def _insert_delay():
+        if msec != 0:
+            time.sleep(msec/1000)
+    return _insert_delay
+
+
 def unicode_keystrokes(n):
     """Turn Unicode number into keystroke commands"""
-    if (n > 0x10ffff):
+    if n > 0x10ffff:
         raise UnicodeNumberToolarge(f"{hex(n)} too large for Unicode keyboard entry.")
-    def _unicode_keystrokes(ctx):
+    def _unicode_keystrokes(ctx: KeyContext):
+        msec_delay = (_THROTTLES["key_pre_delay_ms"] + _THROTTLES["key_post_delay_ms"]) / 2
         combo_list = [
+            insert_delay(msec_delay),
             combo("Shift-Ctrl-u"),  # requires "ibus" or "fctix" as input manager?
+            insert_delay(msec_delay),
             *[Key[hexdigit]
                 for digit in _digits(n, 16)
                 for hexdigit in hex(digit)[2:].upper()
-                ],
+            ],
+            # # Same list as above, but with delays between all digits. Unnecessary?
+            # *[
+            #     key_cmd
+            #     for digit in _digits(n, 16)
+            #     for hexdigit in hex(digit)[2:].upper()
+            #     for key_cmd in (Key[hexdigit], insert_delay(msec_delay))
+            # ],
+            insert_delay(msec_delay),
             Key.ENTER,
+            insert_delay(msec_delay),
         ]
         if ctx.capslock_on:
             combo_list.insert(0, Key.CAPSLOCK)
@@ -433,7 +454,7 @@ def add_modifier(name, aliases, key=None, keys=None):
 def wm_class_match(re_str):
     rgx = re.compile(re_str)
 
-    def cond(ctx):
+    def cond(ctx: KeyContext):
         return rgx.search(ctx.wm_class)
 
     return cond
@@ -442,7 +463,7 @@ def wm_class_match(re_str):
 def not_wm_class_match(re_str):
     rgx = re.compile(re_str)
 
-    def cond(ctx):
+    def cond(ctx: KeyContext):
         return not rgx.search(ctx.wm_class)
 
     return cond
@@ -611,19 +632,19 @@ def old_style_condition_to_fn(condition):
     condition_fn = None
 
     def re_search(regex):
-        def fn(ctx):
+        def fn(ctx: KeyContext):
             return regex.search(ctx.wm_class)
 
         return fn
 
     def wm_class(wm_class_fn):
-        def fn(ctx):
+        def fn(ctx: KeyContext):
             return wm_class_fn(ctx.wm_class)
 
         return fn
 
     def wm_class_and_device(cond_fn):
-        def fn(ctx):
+        def fn(ctx: KeyContext):
             return cond_fn(ctx.wm_class, ctx.device_name)
 
         return fn
