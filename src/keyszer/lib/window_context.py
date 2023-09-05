@@ -2,6 +2,7 @@ import abc
 import dbus
 import json
 import time
+import subprocess
 
 from typing import Dict
 
@@ -73,6 +74,55 @@ class WindowContextProviderInterface(abc.ABC):
 
         :returns: A dictionary containing window context information.
         """
+
+
+class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
+    """Window context provider object for Wayland+KDE_Plasma environments"""
+
+    def __init__(self):
+        # pip install hyprland requests bs4
+        import hyprland
+        self.wm_class       = None
+        self.wm_name        = None
+
+    @classmethod
+    def get_supported_environments(cls):
+        # This class supports the Hyprland environment on Wayland
+        return [
+            ('wayland', 'hyprland'),
+            ('wayland', 'hypr')
+        ]
+
+    def get_window_context(self):
+        self.get_active_window_info_hyprland()
+
+    def get_active_window_info_hyprland(self):
+        """TESTING function to grab window context using subprocess commands (will perform badly)"""
+        try:
+            # Execute the command and get the JSON output
+            cmd_lst = ['hyprctl', 'activewindow', '-j']
+            result = subprocess.run(cmd_lst, 
+                                    stdout=subprocess.PIPE, 
+                                    stderr=subprocess.PIPE, 
+                                    text=True)
+            output = result.stdout
+
+            # Parse the JSON output
+            window_info = json.loads(output)
+
+            # Extract class and title
+            self.wm_class       = window_info.get("class", "hypr-error")
+            self.wm_name        = window_info.get("title", "hypr-error")
+
+            return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return NO_CONTEXT_WAS_ERROR
+
+    # Example usage
+    # info = get_active_window_info()
+    # print(f"Active window class: {info['class']}, title: {info['title']}")
 
 
 class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
