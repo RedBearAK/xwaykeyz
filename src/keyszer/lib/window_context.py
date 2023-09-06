@@ -1,9 +1,15 @@
+import os
 import abc
 import dbus
 import json
 import time
+import shutil
+import socket
 import subprocess
+# pip install hyprland requests bs4
+# import hyprland
 
+from subprocess import PIPE
 from typing import Dict
 
 from .logger import error, debug
@@ -77,11 +83,12 @@ class WindowContextProviderInterface(abc.ABC):
 
 
 class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
-    """Window context provider object for Wayland+KDE_Plasma environments"""
+    """Window context provider object for Wayland+Hyprland environments"""
 
     def __init__(self):
-        # pip install hyprland requests bs4
-        import hyprland
+        self.first_run      = True
+        self.sock           = None
+        self.hyprctl        = shutil.which('hyprctl')
         self.wm_class       = None
         self.wm_name        = None
 
@@ -93,36 +100,67 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
             ('wayland', 'hypr')
         ]
 
-    def get_window_context(self):
-        self.get_active_window_info_hyprland()
-
-    def get_active_window_info_hyprland(self):
-        """TESTING function to grab window context using subprocess commands (will perform badly)"""
+    def _open_socket(self):
+        """Utility function to open Hyprland IPC socket"""
         try:
-            # Execute the command and get the JSON output
-            cmd_lst = ['hyprctl', 'activewindow', '-j']
-            result = subprocess.run(cmd_lst, 
-                                    stdout=subprocess.PIPE, 
-                                    stderr=subprocess.PIPE, 
-                                    text=True)
-            output = result.stdout
+            HIS = os.environ['HYPRLAND_INSTANCE_SIGNATURE']
+        except KeyError as key_err:
+            raise EnvironmentError(f'HYPRLAND_INSTANCE_SIGNATURE is not set. KeyError resulted.')
+        if HIS is None:
+            raise EnvironmentError('HYPRLAND_INSTANCE_SIGNATURE is not set.')
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.connect(f"/tmp/hypr/{HIS}/.socket.sock")
 
-            # Parse the JSON output
-            window_info = json.loads(output)
+    def get_active_wdw_ctx_hypr_ipc(self):
+        """Get Hyprland window context using IPC socket (faster than shell commands)."""
+        try:
+            if self.first_run or self.sock is None:
+                try:
+                    self._open_socket()
+                    debug(f'CTX_HYPR: Using IPC socket for window context.')
+                except (socket.error, OSError, EnvironmentError) as conn_err:
+                    error(f'ERROR: Problem opening Hyprland IPC socket.\n\t{conn_err}')
+                    return self.get_active_wdw_ctx_hypr_shell() # Fallback to shell method
+                    # return NO_CONTEXT_WAS_ERROR  # Fallback if socket can't be opened
+                self.first_run = False
 
-            # Extract class and title
-            self.wm_class       = window_info.get("class", "hypr-error")
-            self.wm_name        = window_info.get("title", "hypr-error")
-
+            command = "-j activewindow"  # Replace with the actual command
+            self.sock.sendall(command.encode("utf-8"))
+            response: bytes     = self.sock.recv(1024)
+            wdw_info_str        = response.decode('utf-8')
+            window_info: dict   = json.loads(wdw_info_str) # Type hint for VSCode "get()" highlight
+            self.wm_class       = window_info.get("class", "hypr-context-error")
+            self.wm_name        = window_info.get("title", "hypr-context-error")
             return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
 
-        except Exception as e:
-            print(f"An error occurred: {e}")
+        except (socket.error, OSError, json.JSONDecodeError) as ctx_err:
+            error(f'ERROR: Problem getting window context via Hyprland IPC socket:\n\t{ctx_err}')
+            # Close the socket
+            if self.sock:
+                self.sock.close()
+                self.sock = None  # Mark it as None so it will be re-opened on the next run
             return NO_CONTEXT_WAS_ERROR
 
-    # Example usage
-    # info = get_active_window_info()
-    # print(f"Active window class: {info['class']}, title: {info['title']}")
+    def get_active_wdw_ctx_hypr_shell(self):
+        """Get Hyprland window context using shell commands (will perform poorly)."""
+        if not self.hyprctl:
+            error(f'ERROR: Hyprland context fallback failed: "hyprctl" not found.')
+            return NO_CONTEXT_WAS_ERROR
+        try:
+            cmd_lst = ['hyprctl', '-j', 'activewindow']
+            result = subprocess.run(cmd_lst, stdout=PIPE, stderr=PIPE, text=True, check=True)
+            wdw_info_str        = result.stdout
+            window_info: dict   = json.loads(wdw_info_str) # Type hint for VSCode "get()" highlight
+            self.wm_class       = window_info.get("class", "hypr-context-error")
+            self.wm_name        = window_info.get("title", "hypr-context-error")
+            debug(f'CTX_HYPR: Using shell command (hyprctl) for window context (FALLBACK!).')
+            return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
+        except subprocess.CalledProcessError as proc_err:
+            error(f"ERROR: Problem getting window context with hyprctl:\n\t{proc_err}")
+            return NO_CONTEXT_WAS_ERROR
+
+    def get_window_context(self):
+        return self.get_active_wdw_ctx_hypr_ipc()
 
 
 class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
