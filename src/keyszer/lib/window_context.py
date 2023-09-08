@@ -86,6 +86,9 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
     """Window context provider object for Wayland+Hyprland environments"""
 
     def __init__(self):
+        from hyprpy import Hyprland
+        self.hypr_inst = Hyprland()
+
         self.first_run      = True
         self.sock           = None
         self.hyprctl        = shutil.which('hyprctl')
@@ -100,12 +103,23 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
             ('wayland', 'hypr')
         ]
 
+    def get_active_wdw_ctx_hyprpy(self):
+        try:
+            window_info         = self.hypr_inst.get_active_window()
+            debug(f'CTX_HYPR: Using "hyprpy" for windows context.')
+            self.wm_class       = window_info.wm_class
+            self.wm_name        = window_info.title
+            return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
+        except Exception as e:
+            error(f'ERROR: Problem getting active window context using "hyprpy".\n\t{e}')
+            return self.get_active_wdw_ctx_hypr_ipc() # fall back to direct IPC method
+
     def _open_socket(self):
         """Utility function to open Hyprland IPC socket"""
         try:
             HIS = os.environ['HYPRLAND_INSTANCE_SIGNATURE']
         except KeyError as key_err:
-            raise EnvironmentError(f'HYPRLAND_INSTANCE_SIGNATURE is not set. KeyError resulted.')
+            raise EnvironmentError('HYPRLAND_INSTANCE_SIGNATURE is not set. KeyError resulted.')
         if HIS is None:
             raise EnvironmentError('HYPRLAND_INSTANCE_SIGNATURE is not set.')
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -121,7 +135,6 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
                 except (socket.error, OSError, EnvironmentError) as conn_err:
                     error(f'ERROR: Problem opening Hyprland IPC socket.\n\t{conn_err}')
                     return self.get_active_wdw_ctx_hypr_shell() # Fallback to shell method
-                    # return NO_CONTEXT_WAS_ERROR  # Fallback if socket can't be opened
                 self.first_run = False
 
             command = "-j activewindow"  # Replace with the actual command
@@ -160,7 +173,8 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
             return NO_CONTEXT_WAS_ERROR
 
     def get_window_context(self):
-        return self.get_active_wdw_ctx_hypr_ipc()
+        # return self.get_active_wdw_ctx_hypr_ipc()
+        return self.get_active_wdw_ctx_hyprpy()
 
 
 class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
