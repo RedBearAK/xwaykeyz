@@ -107,6 +107,7 @@ class Wl_sway_WindowContext(WindowContextProviderInterface):
         while True:
             try:
                 self.cnxn_obj = i3ipc.Connection()
+                debug(f'CTX_SWAY: Connection object created.')
                 break
             # i3ipc.Connection() class may return generic Exception, or ConnectionError
             except (ConnectionError, Exception) as cnxn_err:
@@ -115,6 +116,8 @@ class Wl_sway_WindowContext(WindowContextProviderInterface):
 
     def find_focused(self, con: Con) -> Optional[Con]:
         """Utility function to find the window that has focus."""
+        debug('#### Entering find_focused() method...')
+        debug(f"\t{con = }")
         is_focused: bool = con.focused
         if is_focused:
             return con
@@ -126,8 +129,11 @@ class Wl_sway_WindowContext(WindowContextProviderInterface):
 
     def _fetch_window_info(self):
         """Utility function to get the window info from sway via IPC connection object."""
+        debug('#### Entering _fetch_window_info() method...')
         tree                    = self.cnxn_obj.get_tree()
+        debug(f"\t{tree = }")
         focused_window          = self.find_focused(tree)
+        debug(f"\t{focused_window = }")
         if not focused_window:
             debug("No window is currently focused.")
             return NO_CONTEXT_WAS_ERROR
