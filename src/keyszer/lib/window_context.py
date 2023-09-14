@@ -3,14 +3,14 @@ import abc
 import dbus
 import json
 import time
+import i3ipc
 import shutil
 import socket
 import subprocess
-# pip install hyprland requests bs4
-# import hyprland
 
 from subprocess import PIPE
-from typing import Dict
+from i3ipc import Con
+from typing import Dict, Optional
 
 from .logger import error, debug
 
@@ -82,22 +82,94 @@ class WindowContextProviderInterface(abc.ABC):
         """
 
 
+class Wl_sway_WindowContext(WindowContextProviderInterface):
+    """Window context provider object for Wayland+sway environments"""
+
+    def __init__(self):
+
+        # Create the connection object
+        self.cnxn_obj           = None
+        self._establish_connection()
+
+        self.wm_class           = None
+        self.wm_name            = None
+
+    @classmethod
+    def get_supported_environments(cls):
+        # This class supports the sway window manager environment on Wayland
+        return [
+            ('wayland', 'sway'),
+            ('wayland', 'swaywm'),
+        ]
+
+    def _establish_connection(self):
+        """Establish a connection to sway IPC via i3ipc. Retry indefinitely if unsuccessful."""
+        while True:
+            try:
+                self.cnxn_obj = i3ipc.Connection()
+                break
+            # i3ipc.Connection() class may return generic Exception, or ConnectionError
+            except (ConnectionError, Exception) as cnxn_err:
+                error(f'ERROR: Problem connecting to sway IPC via i3ipc:\n\t{cnxn_err}')
+                time.sleep(3)
+
+    def find_focused(self, con: Con) -> Optional[Con]:
+        """Utility function to find the window that has focus."""
+        is_focused: bool = con.focused
+        if is_focused:
+            return con
+        for node in con.nodes:
+            focused = self.find_focused(node)
+            if focused:
+                return focused
+        return None
+
+    def _fetch_window_info(self):
+        """Utility function to get the window info from sway via IPC connection object."""
+        tree                    = self.cnxn_obj.get_tree()
+        focused_window          = self.find_focused(tree)
+        if not focused_window:
+            debug("No window is currently focused.")
+            return NO_CONTEXT_WAS_ERROR
+        self.wm_class           = focused_window.window_class or 'sway-ctx-error'
+        self.wm_name            = focused_window.window_title or 'sway-ctx-error'
+        return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
+
+    def get_active_wdw_ctx_sway_ipc(self):
+        """Get sway window context via i3ipc Python module methods."""
+        try:
+            return self._fetch_window_info()
+        except (ConnectionError, Exception) as cnxn_err:
+            error(f"ERROR: Issue encountered with sway IPC connection:\n\t{cnxn_err}")
+            self._establish_connection()  # Attempt to re-establish connection
+            try:
+                return self._fetch_window_info()
+            except (ConnectionError, Exception) as cnxn_err:
+                error(f"ERROR: Attempt to reconnect to sway IPC failed.\n\t{cnxn_err}")
+                return NO_CONTEXT_WAS_ERROR
+
+    def get_window_context(self):
+        """Return window context to KeyContext"""
+        return self.get_active_wdw_ctx_sway_ipc()
+
+
+
 class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
     """Window context provider object for Wayland+Hyprland environments"""
 
     def __init__(self):
         from hyprpy import Hyprland
-        self.hypr_inst = Hyprland()
+        self.hypr_inst      = Hyprland()
 
         self.first_run      = True
         self.sock           = None
-        self.hyprctl        = shutil.which('hyprctl')
+        self.hyprctl_cmd    = shutil.which('hyprctl')
         self.wm_class       = None
         self.wm_name        = None
 
     @classmethod
     def get_supported_environments(cls):
-        # This class supports the Hyprland environment on Wayland
+        # This class supports the Hyprland window manager environment on Wayland
         return [
             ('wayland', 'hyprland'),
             ('wayland', 'hypr')
@@ -156,11 +228,11 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
 
     def get_active_wdw_ctx_hypr_shell(self):
         """Get Hyprland window context using shell commands (will perform poorly)."""
-        if not self.hyprctl:
+        if not self.hyprctl_cmd:
             error(f'ERROR: Hyprland context fallback failed: "hyprctl" not found.')
             return NO_CONTEXT_WAS_ERROR
         try:
-            cmd_lst = ['hyprctl', '-j', 'activewindow']
+            cmd_lst = [self.hyprctl_cmd, '-j', 'activewindow']
             result = subprocess.run(cmd_lst, stdout=PIPE, stderr=PIPE, text=True, check=True)
             wdw_info_str        = result.stdout
             window_info: dict   = json.loads(wdw_info_str) # Type hint for VSCode "get()" highlight
@@ -173,6 +245,7 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
             return NO_CONTEXT_WAS_ERROR
 
     def get_window_context(self):
+        """Return window context to KeyContext"""
         # return self.get_active_wdw_ctx_hypr_ipc()
         return self.get_active_wdw_ctx_hyprpy()
 
@@ -216,6 +289,7 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
 
     def get_window_context(self):
         """
+        Return window context to KeyContext
         Gets window context info from D-Bus service fed by KWin script
         """
         try:
