@@ -114,42 +114,16 @@ class Wl_sway_WindowContext(WindowContextProviderInterface):
                 error(f'ERROR: Problem connecting to sway IPC via i3ipc:\n\t{cnxn_err}')
                 time.sleep(3)
 
-    # def find_focused(self, con: Con) -> Optional[Con]:
-    #     """Utility function to find the window that has focus."""
-    #     is_focused: bool = con.focused
-    #     if is_focused:
-    #         return con
-    #     for node in con.nodes:
-    #         focused = self.find_focused(node)
-    #         if focused:
-    #             return focused
-    #     return None
-
-    def _fetch_window_info(self):
-        """Utility function to get the window info from sway via IPC connection object."""
+    def get_active_wdw_ctx_sway_ipc(self):
+        """Get sway window context via i3ipc Python module methods."""
         tree                    = self.cnxn_obj.get_tree()
-        debug(f'\t{tree         = }')
         focused_wdw             = tree.find_focused()
-        debug(f'\t{focused_wdw  = }')
         if not focused_wdw:
             debug("No window is currently focused.")
             return NO_CONTEXT_WAS_ERROR
-        self.wm_class           = focused_wdw.window_class or 'sway-ctx-error'
-        self.wm_name            = focused_wdw.window_title or 'sway-ctx-error'
+        self.wm_class           = focused_wdw.app_id or 'sway-ctx-error'
+        self.wm_name            = focused_wdw.name or 'sway-ctx-error'
         return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
-
-    def get_active_wdw_ctx_sway_ipc(self):
-        """Get sway window context via i3ipc Python module methods."""
-        try:
-            return self._fetch_window_info()
-        except (ConnectionError, Exception) as cnxn_err:
-            error(f"ERROR: Issue encountered with sway IPC connection:\n\t{cnxn_err}")
-            self._establish_connection()  # Attempt to re-establish connection
-            try:
-                return self._fetch_window_info()
-            except (ConnectionError, Exception) as cnxn_err:
-                error(f"ERROR: Attempt to reconnect to sway IPC failed.\n\t{cnxn_err}")
-                return NO_CONTEXT_WAS_ERROR
 
     def get_window_context(self):
         """Return window context to KeyContext"""
