@@ -106,7 +106,7 @@ class Wl_sway_WindowContext(WindowContextProviderInterface):
         """Establish a connection to sway IPC via i3ipc. Retry indefinitely if unsuccessful."""
         while True:
             try:
-                self.cnxn_obj = i3ipc.Connection()
+                self.cnxn_obj = i3ipc.Connection(auto_reconnect=True)
                 debug(f'CTX_SWAY: Connection object created.')
                 break
             # i3ipc.Connection() class may return generic Exception, or ConnectionError
@@ -114,31 +114,28 @@ class Wl_sway_WindowContext(WindowContextProviderInterface):
                 error(f'ERROR: Problem connecting to sway IPC via i3ipc:\n\t{cnxn_err}')
                 time.sleep(3)
 
-    def find_focused(self, con: Con) -> Optional[Con]:
-        """Utility function to find the window that has focus."""
-        debug('#### Entering find_focused() method...')
-        debug(f"\t{con = }")
-        is_focused: bool = con.focused
-        if is_focused:
-            return con
-        for node in con.nodes:
-            focused = self.find_focused(node)
-            if focused:
-                return focused
-        return None
+    # def find_focused(self, con: Con) -> Optional[Con]:
+    #     """Utility function to find the window that has focus."""
+    #     is_focused: bool = con.focused
+    #     if is_focused:
+    #         return con
+    #     for node in con.nodes:
+    #         focused = self.find_focused(node)
+    #         if focused:
+    #             return focused
+    #     return None
 
     def _fetch_window_info(self):
         """Utility function to get the window info from sway via IPC connection object."""
-        debug('#### Entering _fetch_window_info() method...')
         tree                    = self.cnxn_obj.get_tree()
-        debug(f"\t{tree = }")
-        focused_window          = self.find_focused(tree)
-        debug(f"\t{focused_window = }")
-        if not focused_window:
+        debug(f'\t{tree         = }')
+        focused_wdw             = tree.find_focused()
+        debug(f'\t{focused_wdw  = }')
+        if not focused_wdw:
             debug("No window is currently focused.")
             return NO_CONTEXT_WAS_ERROR
-        self.wm_class           = focused_window.window_class or 'sway-ctx-error'
-        self.wm_name            = focused_window.window_title or 'sway-ctx-error'
+        self.wm_class           = focused_wdw.window_class or 'sway-ctx-error'
+        self.wm_name            = focused_wdw.window_title or 'sway-ctx-error'
         return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
 
     def get_active_wdw_ctx_sway_ipc(self):
