@@ -116,7 +116,11 @@ class Wl_sway_WindowContext(WindowContextProviderInterface):
 
     def get_active_wdw_ctx_sway_ipc(self):
         """Get sway window context via i3ipc Python module methods."""
-        tree                    = self.cnxn_obj.get_tree()
+        try:
+            tree                    = self.cnxn_obj.get_tree()
+        except ConnectionResetError as cnxn_err:
+            debug(f"IPC connection was reset (sway).\t\n{cnxn_err}")
+            return NO_CONTEXT_WAS_ERROR
         focused_wdw             = tree.find_focused()
         if not focused_wdw:
             debug("No window is currently focused.")
