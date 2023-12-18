@@ -231,6 +231,82 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
         return self.get_active_wdw_ctx_hyprpy()
 
 
+class Wl_Wlroots_WindowContext(WindowContextProviderInterface):
+    """Window context provider object for Wayland+Wlroots environments"""
+
+    def __init__(self):
+        from dbus.exceptions import DBusException
+
+        self.DBusException      = DBusException
+        self.session_bus        = dbus.SessionBus()
+
+        self.app_id             = None
+        self.title              = None
+
+        self.toshy_dbus_obj     = 'org.toshy.Wlroots'
+        self.toshy_dbus_path    = '/org/toshy/Wlroots'
+        self.dbus_svc_name      = 'Toshy Wlroots D-Bus service'
+
+        while True:
+            try:
+                self.proxy_toshy_svc = self.session_bus.get_object( self.toshy_dbus_obj,
+                                                                    self.toshy_dbus_path)
+                self.iface_toshy_svc = dbus.Interface(  self.proxy_toshy_svc,
+                                                        self.toshy_dbus_obj)
+                break
+            except self.DBusException as dbus_error:
+                error(f'Error getting {self.dbus_svc_name} interface.\n\t{dbus_error}')
+            time.sleep(3)
+
+    @classmethod
+    def get_supported_environments(cls):
+        """
+        This class supports the Wlroots environment on Wayland, as long as the 
+        'wlr_foreign_toplevel_management_unstable_v1' protocol is implemented in 
+        the Wayland compositor. All compositors using current wlroots should work.
+        """
+        return [
+            ('wayland', 'wlroots'),
+        ]
+
+    def get_window_context(self):
+        """
+        Return window context to KeyContext
+        Gets window context info from D-Bus service fed by Wlroots Wayland events, 
+        from 'wlr_foreign_toplevel_management_unstable_v1' protocol.
+        """
+        try:
+            # Convert to native Python dict type from 'dbus.Dictionary()' type
+            window_info_dct     = dict(self.iface_toshy_svc.GetActiveWindow())
+        except self.DBusException as dbus_error:
+            error(f'{self.dbus_svc_name} interface stale?:\n\t{dbus_error}')
+            error(f'Trying to refresh {self.dbus_svc_name} interface...')
+            try:
+                self.proxy_toshy_svc = self.session_bus.get_object( self.toshy_dbus_obj,
+                                                                    self.toshy_dbus_path)
+                self.iface_toshy_svc = dbus.Interface(  self.proxy_toshy_svc,
+                                                        self.toshy_dbus_obj)
+            except self.DBusException as dbus_error:
+                error(f'Error refreshing {self.dbus_svc_name} interface.\n\t{dbus_error}')
+            try:
+                # Convert to native Python dict type from 'dbus.Dictionary()' type
+                window_info_dct     = dict(self.iface_toshy_svc.GetActiveWindow())
+                debug(f'{self.dbus_svc_name} interface restored!')
+            except self.DBusException as dbus_error: 
+                debug(f'Error returned from {self.dbus_svc_name}:\n\t{dbus_error}')
+                return NO_CONTEXT_WAS_ERROR
+
+        # native_dict = {str(key): str(value) for key, value in dbus_dict.items()}
+        new_wdw_info_dct    = {str(key): str(value) for key, value in window_info_dct.items()}
+
+        self.app_id         = new_wdw_info_dct.get('app_id', '')
+        self.title          = new_wdw_info_dct.get('title', '')
+
+        debug(f"WLR_DBUS_SVC: Using D-Bus interface '{self.toshy_dbus_obj}' for window context")
+
+        return {"wm_class": self.app_id, "wm_name": self.title, "x_error": False}
+
+
 class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
     """Window context provider object for Wayland+KDE_Plasma environments"""
 
@@ -306,6 +382,42 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         debug(f"KDE_DBUS_SVC: Using D-Bus interface '{self.toshy_dbus_obj}' for window context")
 
         return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
+
+
+class Wl_Cinnamon_WindowContext(WindowContextProviderInterface):
+    """Window context provider object for Wayland+Cinnamon environments"""
+
+    def __init__(self):
+        from dbus.exceptions import DBusException
+
+        self.DBusException = DBusException
+        session_bus = dbus.SessionBus()
+
+        path_toshy_focused_wdw      = "/app/toshy/ToshyFocusedWindow"
+        obj_toshy_focused_wdw       = "app.toshy.ToshyFocusedWindow"
+        proxy_toshy_focused_wdw     = session_bus.get_object("org.Cinnamon", path_toshy_focused_wdw)
+        self.iface_toshy_focused_wdw = dbus.Interface(proxy_toshy_focused_wdw, obj_toshy_focused_wdw)
+
+    @classmethod
+    def get_supported_environments(cls):
+        # This class supports the Cinnamon environment on Wayland
+        return [('wayland', 'cinnamon')]
+
+    def get_window_context(self):
+        """
+        This function gets the window context from the Toshy Cinnamon extension via D-Bus.
+        """
+        try:
+            window_info_dbus = self.iface_toshy_focused_wdw.GetFocusedWindowInfo()
+            window_info_dict = json.loads(window_info_dbus)
+
+            wm_class = window_info_dict.get('appClass', '')
+            wm_name = window_info_dict.get('windowTitle', '')
+        except self.DBusException as e:
+            print(f"Error querying Cinnamon extension: {e}")
+            return NO_CONTEXT_WAS_ERROR
+
+        return {"wm_class": wm_class, "wm_name": wm_name, "x_error": False}
 
 
 class Wl_GNOME_WindowContext(WindowContextProviderInterface):
