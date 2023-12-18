@@ -390,8 +390,8 @@ class Wl_Cinnamon_WindowContext(WindowContextProviderInterface):
     def __init__(self):
         from dbus.exceptions import DBusException
 
-        self.DBusException = DBusException
-        session_bus = dbus.SessionBus()
+        self.DBusException          = DBusException
+        session_bus                 = dbus.SessionBus()
 
         path_toshy_focused_wdw      = "/app/toshy/ToshyFocusedWindow"
         obj_toshy_focused_wdw       = "app.toshy.ToshyFocusedWindow"
@@ -413,10 +413,11 @@ class Wl_Cinnamon_WindowContext(WindowContextProviderInterface):
 
             wm_class = window_info_dict.get('appClass', '')
             wm_name = window_info_dict.get('windowTitle', '')
-        except self.DBusException as e:
-            print(f"Error querying Cinnamon extension: {e}")
+        except self.DBusException as dbus_err:
+            print(f"Error querying Cinnamon extension: {dbus_err}")
             return NO_CONTEXT_WAS_ERROR
 
+        debug(f"CINN_EXT: Using 'Toshy Focused Window Info' extension for window context.")
         return {"wm_class": wm_class, "wm_name": wm_name, "x_error": False}
 
 
