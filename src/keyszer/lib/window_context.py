@@ -164,8 +164,12 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
             self.wm_name        = window_info.title
             return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
         except Exception as e:
-            error(f'ERROR: Problem getting active window context using "hyprpy".\n\t{e}')
-            return self.get_active_wdw_ctx_hypr_ipc() # fall back to direct IPC method
+            if "validation errors for WindowData" in str(e):
+                debug('No active window found or incomplete window data.')
+                return  {"wm_class": "hypr_no_window", "wm_name": "hypr_no_window", "x_error": False}
+            else:
+                error(f'ERROR: Problem getting active window context using "hyprpy".\n\t{e}')
+                return self.get_active_wdw_ctx_hypr_ipc()
 
     def _open_socket(self):
         """Utility function to open Hyprland IPC socket"""
@@ -194,12 +198,21 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
             self.sock.sendall(command.encode("utf-8"))
             response: bytes     = self.sock.recv(1024)
             wdw_info_str        = response.decode('utf-8')
+
+            # Check if the response is empty or not valid JSON
+            if not wdw_info_str.strip():
+                debug('No active window found or empty response from Hyprland IPC.')
+                return {"wm_class": "hypr_no_window", "wm_name": "hypr_no_window", "x_error": False}
+
             window_info: dict   = json.loads(wdw_info_str) # Type hint for VSCode "get()" highlight
             self.wm_class       = window_info.get("class", "hypr-context-error")
             self.wm_name        = window_info.get("title", "hypr-context-error")
             return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
 
-        except (socket.error, OSError, json.JSONDecodeError) as ctx_err:
+        except json.JSONDecodeError as json_err:
+            debug(f'No active window found or empty response from Hyprland IPC.\n\t{json_err}')
+            return {"wm_class": "hypr_no_window", "wm_name": "hypr_no_window", "x_error": False}
+        except (socket.error, OSError) as ctx_err:
             error(f'ERROR: Problem getting window context via Hyprland IPC socket:\n\t{ctx_err}')
             # Close the socket
             if self.sock:
