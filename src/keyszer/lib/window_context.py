@@ -166,7 +166,7 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
         except Exception as e:
             if "validation errors for WindowData" in str(e):
                 debug('No active window found or incomplete window data.')
-                return  {"wm_class": "hypr_no_window", "wm_name": "hypr_no_window", "x_error": False}
+                return  {"wm_class": "hyprpy_no_window", "wm_name": "hyprpy_no_window", "x_error": False}
             else:
                 error(f'ERROR: Problem getting active window context using "hyprpy".\n\t{e}')
                 return self.get_active_wdw_ctx_hypr_ipc()
@@ -211,7 +211,7 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
 
         except json.JSONDecodeError as json_err:
             debug(f'No active window found or empty response from Hyprland IPC.\n\t{json_err}')
-            return {"wm_class": "hypr_no_window", "wm_name": "hypr_no_window", "x_error": False}
+            return {"wm_class": "hyprIPC_no_window", "wm_name": "hyprIPC_no_window", "x_error": False}
         except (socket.error, OSError) as ctx_err:
             error(f'ERROR: Problem getting window context via Hyprland IPC socket:\n\t{ctx_err}')
             # Close the socket
@@ -234,6 +234,9 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
             self.wm_name        = window_info.get("title", "hypr-context-error")
             debug(f'CTX_HYPR: Using shell command (hyprctl) for window context (FALLBACK!).')
             return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
+        except json.JSONDecodeError as json_err:
+            debug(f'No active window found or empty response from "hyprctl".\n\t{json_err}')
+            return {"wm_class": "hyprctl_no_window", "wm_name": "hyprctl_no_window", "x_error": False}
         except subprocess.CalledProcessError as proc_err:
             error(f"ERROR: Problem getting window context with hyprctl:\n\t{proc_err}")
             return NO_CONTEXT_WAS_ERROR
