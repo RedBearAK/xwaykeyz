@@ -125,7 +125,8 @@ class Wl_sway_WindowContext(WindowContextProviderInterface):
         if not focused_wdw:
             debug("No window is currently focused.")
             return NO_CONTEXT_WAS_ERROR
-        self.wm_class           = focused_wdw.app_id or 'sway-ctx-error'
+        # self.wm_class           = focused_wdw.app_id or 'sway-ctx-error' # doesn't get app class for XWayland app
+        self.wm_class           = focused_wdw.app_id or focused_wdw.window_class or 'sway-ctx-error'
         self.wm_name            = focused_wdw.name or 'sway-ctx-error'
         return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
 
