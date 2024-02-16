@@ -1,4 +1,5 @@
 from evdev import InputDevice, list_devices
+from time import sleep
 
 from .lib.logger import error, info
 from .models.key import Key
@@ -85,6 +86,7 @@ class DeviceRegistry:
         self._loop.add_reader(device, self._input_cb, device)
         self._devices.append(device)
         try:
+            sleep(0.1)
             device.grab()
         except IOError:
             error(
