@@ -1,12 +1,12 @@
 import asyncio
-import inspect
 import signal
 from asyncio import Task, TimerHandle
 from inotify_simple import INotify, Event
 from sys import exit
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from evdev import InputDevice, InputEvent, ecodes
+from evdev.eventio import EventIO
 
 from . import config_api, transform
 from .devices import DeviceFilter, DeviceGrabError, DeviceRegistry
@@ -103,10 +103,9 @@ async def supervisor():
                 _tasks.remove(task)
 
 
-def receive_input(device):
+def receive_input(device: EventIO):
     try:
         for event in device.read():
-            event: InputEvent
             if event.type == ecodes.EV_KEY:
                 if event.code == CONFIG.EMERGENCY_EJECT_KEY:
                     error("BAIL OUT: Emergency eject - shutting down.")
