@@ -87,19 +87,23 @@ class DeviceRegistry:
         info(f"Grabbing '{device.name}' ({device.fn})", ctx="+K")
         self._loop.add_reader(device, self._input_cb, device)
         self._devices.append(device)
-        tries = 3
-        loop_cnt = 1
-        delay = 0.1
+        tries                   = 5
+        loop_cnt                = 1
+        delay                   = 0.1
+        delay_max               = delay * (2 ** (tries - 1))
         while loop_cnt <= tries:
             try:
                 sleep(delay)
                 device.grab()
+                info(f"Successfully grabbed '{device.name}' ({device.fn})", ctx="+K")
                 return
-            except IOError:
-                error(f"IOError grabbing keyboard. Attempt {loop_cnt} of {tries}.")
-            loop_cnt += 1
+            except OSError as err:      # OSError also inherits/catches PermissionError and IOError
+                error(f"{err.__class__.__name__} grabbing '{device.name}' ({device.fn})")
+                error(f"Grab attempt {loop_cnt} of {tries}. The error was:\n\t{err}")
+            loop_cnt           += 1
+            delay               = min(delay * 2, delay_max)   # exponential backoff strategy
         error(f"Device grab was tried {tries} times and failed. Maybe, another instance is running?")
-        error(f"Continuing without device: '{device.name}'")
+        error(f"Continuing without device: '{device.name}' ({device.fn})")
 
     def ungrab(self, device: InputDevice):
         info(f"Ungrabbing: '{device.name}' (removed)", ctx="-K")
