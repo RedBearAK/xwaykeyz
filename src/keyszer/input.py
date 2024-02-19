@@ -104,14 +104,7 @@ async def supervisor():
 
 
 def receive_input(device):
-    help(device)
     try:
-        print(device.read.__doc__)
-        try:
-            print(inspect.getsource(device.read))
-        except TypeError:
-            print("Could not retrieve the source.")
-
         for event in device.read():
             event: InputEvent
             if event.type == ecodes.EV_KEY:
