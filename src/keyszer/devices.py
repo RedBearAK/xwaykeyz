@@ -1,5 +1,7 @@
+from asyncio import AbstractEventLoop
 from evdev import InputDevice, list_devices
 from time import sleep
+from typing import List
 
 from .lib.logger import error, info
 from .models.key import Key
@@ -11,7 +13,7 @@ A_Z_SPACE = [Key.SPACE, Key.A, Key.Z]
 
 class Devices:
     @staticmethod
-    def is_keyboard(device):
+    def is_keyboard(device: InputDevice):
         """Guess the device is a keyboard or not"""
         capabilities = device.capabilities(verbose=False)
         if 1 not in capabilities:
@@ -57,10 +59,10 @@ class DeviceGrabError(IOError):
 
 class DeviceRegistry:
     def __init__(self, loop, input_cb, filterer):
-        self._devices = []
-        self._loop = loop
+        self._devices: List[InputDevice] = []
+        self._loop: AbstractEventLoop = loop
         self._input_cb = input_cb
-        self._filter = filterer
+        self._filter: DeviceFilter = filterer
 
     def __contains__(self, device):
         return device in self._devices
@@ -81,20 +83,25 @@ class DeviceRegistry:
         for device in devices:
             self.grab(device)
 
-    def grab(self, device):
+    def grab(self, device: InputDevice):
         info(f"Grabbing '{device.name}' ({device.fn})", ctx="+K")
         self._loop.add_reader(device, self._input_cb, device)
         self._devices.append(device)
-        try:
-            sleep(0.1)
-            device.grab()
-        except IOError:
-            error(
-                "IOError grabbing keyboard. Maybe, another instance is running?"
-            )
-            raise DeviceGrabError()
+        tries = 3
+        loop_cnt = 1
+        delay = 0.1
+        while loop_cnt <= tries:
+            try:
+                sleep(delay)
+                device.grab()
+                return
+            except IOError:
+                error(f"IOError grabbing keyboard. Attempt {loop_cnt} of {tries}.")
+            loop_cnt += 1
+        error(f"Device grab was tried {tries} times and failed. Maybe, another instance is running?")
+        error(f"Continuing without device: '{device.name}'")
 
-    def ungrab(self, device):
+    def ungrab(self, device: InputDevice):
         info(f"Ungrabbing: '{device.name}' (removed)", ctx="-K")
         self._loop.remove_reader(device)
         self._devices.remove(device)
@@ -129,7 +136,7 @@ class DeviceFilter:
         if not matches:
             info("Autodetecting all keyboards (--device not specified)")
 
-    def is_virtual_device(self, device):
+    def is_virtual_device(self, device: InputDevice):
         if VIRT_DEVICE_PREFIX in device.name:
             return True
 
@@ -140,7 +147,7 @@ class DeviceFilter:
 
         return False
 
-    def filter(self, device):
+    def filter(self, device: InputDevice):
         # Match by device path or name, if no keyboard devices specified,
         # picks up keyboard-ish devices.
         if self.matches:
