@@ -1,6 +1,10 @@
 import asyncio
+import inspect
 import signal
+from asyncio import Task, TimerHandle
+from inotify_simple import INotify, Event
 from sys import exit
+from typing import Any, List, Optional
 
 from evdev import InputDevice, InputEvent, ecodes
 
@@ -83,7 +87,7 @@ def main_loop(arg_devices, device_watch):
             inotify.close()
 
 
-_tasks = []
+_tasks: List[Task] = []
 _sup = None
 
 
@@ -100,8 +104,16 @@ async def supervisor():
 
 
 def receive_input(device):
+    help(device)
     try:
+        print(device.read.__doc__)
+        try:
+            print(inspect.getsource(device.read))
+        except TypeError:
+            print("Could not retrieve the source.")
+
         for event in device.read():
+            event: InputEvent
             if event.type == ecodes.EV_KEY:
                 if event.code == CONFIG.EMERGENCY_EJECT_KEY:
                     error("BAIL OUT: Emergency eject - shutting down.")
@@ -122,11 +134,11 @@ def receive_input(device):
             raise
 
 
-_add_timer = None
+_add_timer: Optional[TimerHandle] = None
 _notify_events = []
 
 
-def _inotify_handler(registry, inotify):
+def _inotify_handler(registry, inotify: INotify):
     global _add_timer
     global _notify_events
 
@@ -145,7 +157,7 @@ def _inotify_handler(registry, inotify):
     _add_timer = loop.call_later(0.5, device_change_task)
 
 
-async def device_change(registry, events):
+async def device_change(registry: DeviceRegistry, events: List[Event]):
     while events:
         event = events.pop(0)
         # ignore mouse, mice, etc, non-event devices
