@@ -1,7 +1,9 @@
 import asyncio
 import signal
 from asyncio import Task, TimerHandle
-from inotify_simple import INotify, Event
+from collections import deque
+from inotify_simple import INotify, flags
+from inotify_simple import Event as inotify_Event
 from sys import exit
 from typing import List, Optional
 
@@ -149,24 +151,46 @@ def _inotify_handler(registry, inotify: INotify):
     _add_timer = loop.call_later(0.5, device_change_task)
 
 
-async def device_change(registry: DeviceRegistry, events: List[Event]):
+# async def device_change(registry: DeviceRegistry, events: List[inotify_Event]):
+async def device_change(registry: DeviceRegistry, events: deque[inotify_Event]):
     while events:
-        event = events.pop(0)
+        # event: inotify_Event = events.pop(0)
+        event = events.popleft()
+
         # ignore mouse, mice, etc, non-event devices
         if not event.name.startswith("event"):
             continue
 
         filename = f"/dev/input/{event.name}"
-        try:
-            device = InputDevice(filename)
-        except FileNotFoundError:
-            # assume it's gone and try to remove it by name
-            registry.ungrab_by_filename(filename)
-            continue
+
+        # deal with a permission problem of unknown origin
+        tries = 5
+        loop_cnt = 1
+        delay = 0.1
+        delay_max = delay * (2 ** (tries - 1))
+
+        device = None
+        while loop_cnt <= tries:
+            try:
+                device = InputDevice(filename)
+                break  # Successful device initialization, exit retry loop
+            except (FileNotFoundError, PermissionError) as err:
+                if loop_cnt == tries:
+                    error(  f"Unable to initialize '{filename}' after {tries} attempts "
+                            f"due to {err.__class__.__name__}:\n\t{err}")
+                    if isinstance(err, FileNotFoundError):
+                        # assume it's gone and try to remove it by name
+                        registry.ungrab_by_filename(filename)
+                    # Exit the while loop and move on to the next event if any
+                    break
+                else:
+                    error(  f"Retrying to initialize '{filename}'. "
+                            f"Attempt {loop_cnt} of {tries}. Error:\n\t{err}")
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, delay_max)
+                loop_cnt += 1
 
         # unplugging
-        from inotify_simple import flags
-
         if event.mask == flags.DELETE:
             if device in registry:
                 registry.ungrab(device)
