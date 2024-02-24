@@ -158,7 +158,9 @@ async def device_change(registry: DeviceRegistry, events: deque[inotify_Event]):
         event = events.popleft()
 
         # ignore mouse, mice, etc, non-event devices
-        if not event.name.startswith("event"):
+        # type hint for `event.name` helps linter highlight `startswith()` correctly
+        event_name: str = event.name
+        if not event_name.startswith("event"):
             continue
 
         filename = f"/dev/input/{event.name}"
