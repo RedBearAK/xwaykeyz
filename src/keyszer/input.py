@@ -164,9 +164,9 @@ async def device_change(registry: DeviceRegistry, events: List[inotify_Event]):
         filename = f"/dev/input/{event.name}"
 
         # deal with a permission problem of unknown origin
-        tries = 5
+        tries = 9
         loop_cnt = 1
-        delay = 0.1
+        delay = 0.2
         delay_max = delay * (2 ** (tries - 1))
 
         device = None

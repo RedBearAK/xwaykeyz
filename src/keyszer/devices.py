@@ -87,9 +87,9 @@ class DeviceRegistry:
         info(f"Grabbing '{device.name}' ({device.fn})", ctx="+K")
         self._loop.add_reader(device, self._input_cb, device)
         self._devices.append(device)
-        tries                   = 5
+        tries                   = 9
         loop_cnt                = 1
-        delay                   = 0.1
+        delay                   = 0.2
         delay_max               = delay * (2 ** (tries - 1))
         while loop_cnt <= tries:
             try:
