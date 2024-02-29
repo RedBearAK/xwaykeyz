@@ -151,11 +151,9 @@ def _inotify_handler(registry, inotify: INotify):
     _add_timer = loop.call_later(0.5, device_change_task)
 
 
-# async def device_change(registry: DeviceRegistry, events: List[inotify_Event]):
-async def device_change(registry: DeviceRegistry, events: deque[inotify_Event]):
+async def device_change(registry: DeviceRegistry, events: List[inotify_Event]):
     while events:
-        # event: inotify_Event = events.pop(0)
-        event = events.popleft()
+        event: inotify_Event = events.pop(0)
 
         # ignore mouse, mice, etc, non-event devices
         # type hint for `event.name` helps linter highlight `startswith()` correctly
