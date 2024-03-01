@@ -152,19 +152,19 @@ async def device_change(registry: DeviceRegistry, events: List[inotify_Event]):
     while events:
         event: inotify_Event = events.pop(0)
 
-        # ignore mouse, mice, etc, non-event devices
         # type hint for `event.name` helps linter highlight `startswith()` correctly
         event_name: str = event.name
+        # ignore mouse, mice, etc, non-event devices
         if not event_name.startswith("event"):
             continue
 
         filename = f"/dev/input/{event.name}"
 
         # deal with a permission problem of unknown origin
-        tries = 9
-        loop_cnt = 1
-        delay = 0.2
-        delay_max = delay * (2 ** (tries - 1))
+        tries                   = 9
+        loop_cnt                = 1
+        delay                   = 0.2
+        delay_max               = delay * (2 ** (tries - 1))
 
         device = None
         while loop_cnt <= tries:
@@ -172,11 +172,9 @@ async def device_change(registry: DeviceRegistry, events: List[inotify_Event]):
                 device = InputDevice(filename)
                 break  # Successful device initialization, exit retry loop
             except FileNotFoundError as fnf_err:
-                error(f"File not found '{filename}': {fnf_err}")
-                # Handle file not found immediately or after minimal retries
-                if loop_cnt >= 1:  # Adjust this value as needed
-                    registry.ungrab_by_filename(filename)
-                    break  # Exit retry loop if the device is not found
+                error(f"File not found '{filename}':\n\t{fnf_err}")
+                registry.ungrab_by_filename(filename)
+                break  # Exit retry loop if the device is not found
             except PermissionError as perm_err:
                 if loop_cnt == tries:
                     error(f"PermissionError after {tries} attempts for '{filename}':\n\t{perm_err}")
