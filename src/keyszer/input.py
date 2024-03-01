@@ -186,6 +186,9 @@ async def device_change(registry: DeviceRegistry, events: List[inotify_Event]):
             delay = min(delay * 2, delay_max)
             loop_cnt += 1
 
+        if device is None:
+            continue
+
         # unplugging
         if event.mask == flags.DELETE:
             if device in registry:
