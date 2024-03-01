@@ -172,7 +172,7 @@ async def device_change(registry: DeviceRegistry, events: List[inotify_Event]):
                 device = InputDevice(filename)
                 break  # Successful device initialization, exit retry loop
             except FileNotFoundError as fnf_err:
-                error(f"File not found '{filename}':\n\t{fnf_err}")
+                # error(f"File not found '{filename}':\n\t{fnf_err}")
                 registry.ungrab_by_filename(filename)
                 break  # Exit retry loop if the device is not found
             except PermissionError as perm_err:
