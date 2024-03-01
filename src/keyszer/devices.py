@@ -141,7 +141,7 @@ class DeviceFilter:
             info("Autodetecting all keyboards (--device not specified)")
 
     def is_virtual_device(self, device: InputDevice):
-        if VIRT_DEVICE_PREFIX in device.name:
+        if device is not None and VIRT_DEVICE_PREFIX in device.name:
             return True
 
         from .output import _uinput

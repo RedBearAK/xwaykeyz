@@ -174,21 +174,22 @@ async def device_change(registry: DeviceRegistry, events: List[inotify_Event]):
             try:
                 device = InputDevice(filename)
                 break  # Successful device initialization, exit retry loop
-            except (FileNotFoundError, PermissionError) as err:
+            except FileNotFoundError as fnf_err:
+                error(f"File not found '{filename}': {fnf_err}")
+                # Handle file not found immediately or after minimal retries
+                if loop_cnt >= 1:  # Adjust this value as needed
+                    registry.ungrab_by_filename(filename)
+                    break  # Exit retry loop if the device is not found
+            except PermissionError as perm_err:
                 if loop_cnt == tries:
-                    error(  f"Unable to initialize '{filename}' after {tries} attempts "
-                            f"due to {err.__class__.__name__}:\n\t{err}")
-                    if isinstance(err, FileNotFoundError):
-                        # assume it's gone and try to remove it by name
-                        registry.ungrab_by_filename(filename)
-                    # Exit the while loop and move on to the next event if any
-                    break
+                    error(f"PermissionError after {tries} attempts for '{filename}':\n\t{perm_err}")
+                    break  # Final attempt due to PermissionError, exit retry loop
                 else:
-                    error(  f"Retrying to initialize '{filename}'. "
-                            f"Attempt {loop_cnt} of {tries}. Error:\n\t{err}")
-                await asyncio.sleep(delay)
-                delay = min(delay * 2, delay_max)
-                loop_cnt += 1
+                    error(  f"Retrying to initialize '{filename}' due to PermissionError. "
+                            f"Attempt {loop_cnt} of {tries}.\n\t{perm_err}")
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, delay_max)
+            loop_cnt += 1
 
         # unplugging
         if event.mask == flags.DELETE:
