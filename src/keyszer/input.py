@@ -1,7 +1,6 @@
 import asyncio
 import signal
 from asyncio import Task, TimerHandle
-from collections import deque
 from inotify_simple import INotify, flags
 from inotify_simple import Event as inotify_Event
 from sys import exit
