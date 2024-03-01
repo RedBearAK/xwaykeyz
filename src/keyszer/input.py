@@ -38,8 +38,6 @@ def sig_int():
 
 
 def watch_dev_input():
-    from inotify_simple import INotify, flags
-
     inotify = INotify()
     inotify.add_watch("/dev/input", flags.CREATE | flags.ATTRIB | flags.DELETE)
     return inotify
