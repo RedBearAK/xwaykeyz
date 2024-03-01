@@ -154,14 +154,14 @@ class DeviceFilter:
     def filter(self, device: InputDevice):
         # Match by device path or name, if no keyboard devices specified,
         # picks up keyboard-ish devices.
-        if self.matches:
+        if device is not None and self.matches:
             for match in self.matches:
                 if device.fn == match or device.name == match:
                     return True
             return False
 
         # Exclude our own emulated devices to prevent feedback loop
-        if self.is_virtual_device(device):
+        if device is not None and self.is_virtual_device(device):
             return False
 
         # Exclude none keyboard devices
