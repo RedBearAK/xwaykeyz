@@ -114,10 +114,10 @@ class DeviceRegistry:
         except OSError:
             pass
 
-    def ungrab_by_filename(self, fn):
+    def ungrab_by_filename(self, filename):
         for device in self._devices:
             try:
-                if device.fn == fn:
+                if device.fn == filename:
                     info(f"Ungrabbing: '{device.name}' (removed)", ctx="-K")
                     self._loop.remove_reader(device)
                     self._devices.remove(device)
