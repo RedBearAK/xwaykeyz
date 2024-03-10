@@ -513,8 +513,9 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
             try:
                 # Call the function associated with the extension
                 context = self.GNOME_SHELL_EXTENSIONS[extension_uuid]()
-            except self.DBusException as e:
-                error(f"Error returned from GNOME Shell extension '{extension_uuid}'\n\t {e}")
+            except self.DBusException as dbus_err:
+                dbus_err = str(dbus_err).replace("Object does not exist", "\n\tObject does not exist")
+                error(f"Error returned from GNOME Shell extension '{extension_uuid}':\n\t {dbus_err}")
                 # Continue to the next extension
                 continue
             else:
