@@ -528,6 +528,7 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
         print()
         error(  f'############################################################################')
         error(  f'SHELL_EXT: No compatible GNOME Shell extension responding via D-Bus.'
+                f'(Ignore this error if screen was locked/inactive at the time.)'
                 f'\n\tThese shell extensions are compatible with keyszer:'
                 f'\n\t    {self.ext_uuid_xremap} (supports pre-GNOME 41.x):'
                 f'\n\t\t(https://extensions.gnome.org/extension/5060/xremap/)'
