@@ -607,6 +607,7 @@ class Xorg_WindowContext(WindowContextProviderInterface):
                             ConnectionClosedError,
                             DisplayConnectionError,
                             DisplayNameError,
+                            BadValue,
                             BadWindow
                             )
         self.Window                 = Window
@@ -614,6 +615,7 @@ class Xorg_WindowContext(WindowContextProviderInterface):
         self.ConnectionClosedError  = ConnectionClosedError
         self.DisplayConnectionError = DisplayConnectionError
         self.DisplayNameError       = DisplayNameError
+        self.BadValue               = BadValue
         self.BadWindow              = BadWindow
 
     @classmethod
@@ -685,7 +687,10 @@ class Xorg_WindowContext(WindowContextProviderInterface):
             # use _NET_WM_NAME string instead of WM_NAME to bypass (COMPOUND_TEXT) encoding problems
             wmname = window.get_full_text_property(self._display.get_atom("_NET_WM_NAME"))
             wmclass = window.get_wm_class()
-        except self.BadWindow as xerror:  # Catch the BadWindow error here
+        except self.BadWindow as xerror:
+            error(xerror)
+            return None  # or do some appropriate handling here
+        except self.BadValue as xerror:
             error(xerror)
             return None  # or do some appropriate handling here
 
