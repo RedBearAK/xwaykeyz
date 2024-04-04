@@ -2,7 +2,7 @@ __pycache__/
 .venv
 .pyc
 .idea
-keyszer.egg-info
+xwaykeyz.egg-info
 
 tools/short.sh
 configs/*

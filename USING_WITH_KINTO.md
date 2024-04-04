@@ -66,7 +66,7 @@ _This is not exact_ (since the above is from the template rather than the final 
 
 Contributions to these instructions are welcome for any early adventurers.
 
-For help: https://github.com/joshgoebel/keyszer/issues/36
+For help: https://github.com/RedBearAK/xwaykeyz/issues/36
 
 
 

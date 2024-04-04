@@ -1,17 +1,17 @@
 # keyszer - a smart key remapper for Linux/X11
 
-[![latest version](https://badgen.net/pypi/v/keyszer?label=beta)](https://github.com/joshgoebel/keyszer/releases)
+[![latest version](https://badgen.net/pypi/v/keyszer?label=beta)](https://github.com/RedBearAK/xwaykeyz/releases)
 [![python 3.10](https://badgen.net/badge/python/3.10/blue)]()
-[![license](https://badgen.net/badge/license/GPL3/keyszer?color=cyan)](https://github.com/joshgoebel/keyszer/blob/main/LICENSE)
-[![code quality](https://badgen.net/lgtm/grade/g/joshgoebel/keyszer/js?label=code+quality)](https://lgtm.com/projects/g/joshgoebel/keyszer/?mode=list)
+[![license](https://badgen.net/badge/license/GPL3/keyszer?color=cyan)](https://github.com/RedBearAK/xwaykeyz/blob/main/LICENSE)
+[![code quality](https://badgen.net/lgtm/grade/g/RedBearAK/xwaykeyz/js?label=code+quality)](https://lgtm.com/projects/g/RedBearAK/xwaykeyz/?mode=list)
 [![discord](https://badgen.net/badge/icon/discord?icon=discord&label&color=pink)](https://discord.gg/nX6qSC8mer)
 
-<!-- [![vulnerabilities](https://badgen.net/snyk/joshgoebel/keyszer)](https://snyk.io/test/github/joshgoebel/keyszer?targetFile=package.json) -->
+<!-- [![vulnerabilities](https://badgen.net/snyk/RedBearAK/xwaykeyz)](https://snyk.io/test/github/RedBearAK/xwaykeyz?targetFile=package.json) -->
 
-[![open issues](https://badgen.net/github/open-issues/joshgoebel/keyszer?label=issues)](https://github.com/joshgoebel/keyszer/issues)
-[![help welcome issues](https://badgen.net/github/label-issues/joshgoebel/keyszer/help%20welcome/open)](https://github.com/joshgoebel/keyszer/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+welcome%22)
-[![good first issue](https://badgen.net/github/label-issues/joshgoebel/keyszer/good%20first%20issue/open)](https://github.com/joshgoebel/keyszer/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22)
-![build and CI status](https://badgen.net/github/checks/joshgoebel/keyszer)
+[![open issues](https://badgen.net/github/open-issues/RedBearAK/xwaykeyz?label=issues)](https://github.com/RedBearAK/xwaykeyz/issues)
+[![help welcome issues](https://badgen.net/github/label-issues/RedBearAK/xwaykeyz/help%20welcome/open)](https://github.com/RedBearAK/xwaykeyz/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+welcome%22)
+[![good first issue](https://badgen.net/github/label-issues/RedBearAK/xwaykeyz/good%20first%20issue/open)](https://github.com/RedBearAK/xwaykeyz/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22)
+![build and CI status](https://badgen.net/github/checks/RedBearAK/xwaykeyz)
 
 
 Keyszer is a smart key remapper for Linux (and X11) written in Python. It's similar to `xmodmap` but allows far more flexible remappings.  Keyszer was forked from [xkeysnail](https://github.com/mooz/xkeysnail) which no longer seems actively maintained.
@@ -26,8 +26,8 @@ Keyszer works at quite a low-level.  It grabs input directly from the kernel's [
 
 - Some small configuration changes will be needed.
 - A few command line arguments have changed.
-- For xkeysnail 0.4.0 see [UPGRADING_FROM_XKEYSNAIL.md](https://github.com/joshgoebel/keyszer/blob/main/UPGRADE_FROM_XKEYSNAIL.md).
-- For xkeysnail (Kinto variety) see [USING_WITH_KINTO.md](https://github.com/joshgoebel/keyszer/blob/main/USING_WITH_KINTO.md) and [Using with Kinto v1.2-13](https://github.com/joshgoebel/keyszer/issues/36).
+- For xkeysnail 0.4.0 see [UPGRADING_FROM_XKEYSNAIL.md](https://github.com/RedBearAK/xwaykeyz/blob/main/UPGRADE_FROM_XKEYSNAIL.md).
+- For xkeysnail (Kinto variety) see [USING_WITH_KINTO.md](https://github.com/RedBearAK/xwaykeyz/blob/main/USING_WITH_KINTO.md) and [Using with Kinto v1.2-13](https://github.com/RedBearAK/xwaykeyz/issues/36).
 
 
 #### Key Highlights
@@ -120,7 +120,7 @@ _Over time we should add individual instructions for various distros here._
 
 Just download the source and install.
 
-    git clone https://github.com/joshgoebel/keyszer.git
+    git clone https://github.com/RedBearAK/xwaykeyz.git
     cd keyszer
     pip3 install --user --upgrade .
 
@@ -129,7 +129,7 @@ Just download the source and install.
 
 Using a Python `venv` might be the simplest way to get started:
 
-    git clone https://github.com/joshgoebel/keyszer.git
+    git clone https://github.com/RedBearAK/xwaykeyz.git
     cd keyszer
     python -m venv .venv
     source .venv/bin/activate
@@ -244,7 +244,7 @@ The full path or complete device name may be used.  Device name is usually bette
 ## Configuration
 
 By default we look for the configuration in `~/.config/keyszer/config.py`. You can override this location using the `-c`/`--config` switch.  The configuration file is written in Python.
-For an example configuration please see [`example/config.py`](https://github.com/joshgoebel/keyszer/blob/main/example/config.py).
+For an example configuration please see [`example/config.py`](https://github.com/RedBearAK/xwaykeyz/blob/main/example/config.py).
 
 
 The configuration API:
@@ -474,7 +474,7 @@ The Combo specification in a keymap is written in the form of `C("(<Modifier>-)*
 
 You can specify left/right modifiers by adding the prefixes `L` or `R`.
 
-`<Key>` is any key whose name is defined in [`key.py`](https://github.com/joshgoebel/keyszer/blob/main/keyszer/models/key.py).
+`<Key>` is any key whose name is defined in [`key.py`](https://github.com/RedBearAK/xwaykeyz/blob/main/keyszer/models/key.py).
 
 Some combo examples:
 
@@ -518,7 +518,7 @@ Event: time 1655723568.594844, type 1 (EV_KEY), code 69 (KEY_NUMLOCK), value 1
 Event: time 1655723568.594844, -------------- SYN_REPORT ------------
 ```
 
-Above I've just pressed "clear" on my numpad and see `code 69 (KEY_NUMLOCK)` in the output. For Keyszer this would translate to `Key.NUMLOCK`.  You can also browse the [full list of key names](https://github.com/joshgoebel/keyszer/blob/main/src/keyszer/models/key.py) in the source.
+Above I've just pressed "clear" on my numpad and see `code 69 (KEY_NUMLOCK)` in the output. For Keyszer this would translate to `Key.NUMLOCK`.  You can also browse the [full list of key names](https://github.com/RedBearAK/xwaykeyz/blob/main/src/keyszer/models/key.py) in the source.
 
 
 #### Finding an Application's `WM_CLASS`  and `WM_NAME` using `xprop`
@@ -583,39 +583,39 @@ Here is the command I use:
 
 For best results your real keyboard and Keyszer [virtual] keyboard should have matching repeat rates. That seems to work best for me. Anytime you restart keyszer you'll need to reconfigure the repeat rate because each time a new virtual keyboard device is created... or maybe it's that there is only a single repeat rate and every time you "plug in" a new keyboard it changes?
 
-_If you could shed some light on this, please [get in touch](https://github.com/joshgoebel/keyszer/issues/55)._
+_If you could shed some light on this, please [get in touch](https://github.com/RedBearAK/xwaykeyz/issues/55)._
 
 
 **Does Keyszer support FreeBSD/NetBSD or other BSDs?**
 
 Not at the moment, perhaps never.  If you're an expert on the BSD kernel's input layers please
-[join the discussion](https://github.com/joshgoebel/keyszer/issues/46).  I'm at the very least open to the discussion to find out if this is possible, a good idea, etc...
+[join the discussion](https://github.com/RedBearAK/xwaykeyz/issues/46).  I'm at the very least open to the discussion to find out if this is possible, a good idea, etc...
 
 
 **Does this work with Wayland?**
 
-[Not yet.](https://github.com/joshgoebel/keyszer/issues/27)  This is desires but seems impossible at the moment until there is a standardized system to *quickly and easily* determine the app/window that has input focus on Wayland, just like we do so easily on X11.
+[Not yet.](https://github.com/RedBearAK/xwaykeyz/issues/27)  This is desires but seems impossible at the moment until there is a standardized system to *quickly and easily* determine the app/window that has input focus on Wayland, just like we do so easily on X11.
 
 
 **Is keyszer compatible with [Kinto.sh](https://github.com/rbreaves/kinto)?**
 
 
-*That is certainly the plan.*   The major reason Kinto.sh required it's own fork [has been resolved](https://github.com/joshgoebel/keyszer/issues/11).  Kinto.sh should simply "just work" with `keyszer` (with a few tiny config changes).  In fact, hopefully it works better than before since many quirks with the Kinto fork should be resolved. (such as nested combos not working, etc)
+*That is certainly the plan.*   The major reason Kinto.sh required it's own fork [has been resolved](https://github.com/RedBearAK/xwaykeyz/issues/11).  Kinto.sh should simply "just work" with `keyszer` (with a few tiny config changes).  In fact, hopefully it works better than before since many quirks with the Kinto fork should be resolved. (such as nested combos not working, etc)
 
 Reference:
 
 - [Kinto GitHub issue](https://github.com/rbreaves/kinto/issues/718) regarding the transition.
-- Instructions on altering your `kinto.py` config slightly. See [USING_WITH_KINTO.md](https://github.com/joshgoebel/keyszer/blob/main/USING_WITH_KINTO.md).
+- Instructions on altering your `kinto.py` config slightly. See [USING_WITH_KINTO.md](https://github.com/RedBearAK/xwaykeyz/blob/main/USING_WITH_KINTO.md).
 
 
 **How can I help or contribute?**
 
-Please open an issue to discuss how you'd like to get involved or respond on one of the existing issues. Also feel free to open new issues for feature requests.  Many issues are tagged [good first issue](https://github.com/joshgoebel/keyszer/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) or [help welcome](https://github.com/joshgoebel/keyszer/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+welcome%22).
+Please open an issue to discuss how you'd like to get involved or respond on one of the existing issues. Also feel free to open new issues for feature requests.  Many issues are tagged [good first issue](https://github.com/RedBearAK/xwaykeyz/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) or [help welcome](https://github.com/RedBearAK/xwaykeyz/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+welcome%22).
 
 
 
 ## License
 
-`keyszer` is distributed under GPL3.  See [LICENSE](https://github.com/joshgoebel/keyszer/blob/main/LICENSE).
+`keyszer` is distributed under GPL3.  See [LICENSE](https://github.com/RedBearAK/xwaykeyz/blob/main/LICENSE).
 
 

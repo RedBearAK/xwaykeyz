@@ -8,7 +8,7 @@ CONFIG_NAMESPACE = "CFG:"
 
 def _gen_config_header(path):
     return bytes("import re;"
-        "from keyszer.config_api import *;"
+        "from xwaykeyz.config_api import *;"
         f"__config__ = '{path}';"
         ,"utf-8")
 
@@ -48,7 +48,7 @@ def print_config_traceback():
 
     print("\nTraceback (while executing your config):")
     for frame in traceback.extract_tb(tb):
-        if "keyszer/cli" in frame.filename:
+        if "xwaykeyz/cli" in frame.filename:
             continue
         if frame.name == "include":
             continue
@@ -87,7 +87,7 @@ def main():
         dest="config",
         metavar="config.py",
         type=str,
-        default=user_config_dir("keyszer/config.py"),
+        default=user_config_dir("xwaykeyz/config.py"),
         help="use custom configuration file",
     )
     parser.add_argument(

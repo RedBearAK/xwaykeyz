@@ -106,7 +106,7 @@ def environ_api(session_type='x11', wl_desktop_env=None):
 
     if provided_environment_tup not in supported_environments:
         error(f'Unsupported environment: Session type: {session_type}, Desktop env: {wl_desktop_env}')
-        debug(f"Supported environments for keyszer: ('session_type', 'desktop_env')\n\t" +
+        debug(f"Supported environments: ('session_type', 'desktop_env')\n\t" +
                 '\n\t'.join(ppf(item) for item in supported_environments) + '\n')
         sys.exit(1)
 

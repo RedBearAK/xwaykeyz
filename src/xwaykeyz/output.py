@@ -9,9 +9,9 @@ from .models.modifier import Modifier
 from .config_api import _THROTTLES
 
 
-VIRT_DEVICE_PREFIX = "Keyszer (virtual)"
+VIRT_DEVICE_PREFIX = "XWayKeyz (virtual)"
 
-# Remove all buttons so udev doesn't think keyszer is a joystick
+# Remove all buttons so udev doesn't think virtual keyboard is a joystick
 _KEYBOARD_KEYS: set = ecodes.keys.keys() - ecodes.BTN
 
 # But we want mouse buttons, so let's enumerate those and add them

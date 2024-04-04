@@ -13,12 +13,12 @@ assignees: ''
 
 **Sample Config or Instructions to Reproduce**
 <!--
-Please include step-by-step instructions when possible to reproduce the bug you are seeing.  If you're using a custom configuration file please attach that; or at lest the relevant part if your struggling with a particular mapping or conditional, etc.  Often a verbose log (`keyszer -v`) of output can help for really complex stucky key or incorrect keypress situations. -->
+Please include step-by-step instructions when possible to reproduce the bug you are seeing.  If you're using a custom configuration file please attach that; or at lest the relevant part if your struggling with a particular mapping or conditional, etc.  Often a verbose log (`xwaykeyz -v`) of output can help for really complex stucky key or incorrect keypress situations. -->
 
 **Your setup**
 
 - Python version:
-- Keyszer version:
+- Xwaykeyz version:
 - Kinto version (if applicable):
 - Devices `(+K)` we're handling input from:
 

@@ -4,7 +4,7 @@
 
 ### Remove preamble `imports` and `coding comments`
 
-Remove most preamble import statements. These are no longer necessary.  The full `keyszer` API as well as `re` (for regex) are available now by default, automatically.
+Remove most preamble import statements. These are no longer necessary.  The full `xwaykeyz` API as well as `re` (for regex) are available now by default, automatically.
 
 _These lines can all be removed:_
 
@@ -26,7 +26,7 @@ Replace these with the clearler `Alt` equivalents:
 
 There are questions of whether this ever worked properly and it needed to be rethought in any case to be far more reliable and secure.
 
-If you need this functionality please see [issue 44](https://github.com/joshgoebel/keyszer/issues/44) for how to implement it.
+If you need this functionality please see [issue 44](https://github.com/RedBearAK/xwaykeyz/issues/44) for how to implement it.
 
 ### Remove `pass_through_key`
 
@@ -50,14 +50,14 @@ keymap("default", {
 Both `Alt-0` and `Alt-1` will now be silently ignored.
 
 
-## Rewriting your config using the new Keyszer APIs
+## Rewriting your config using the new xwaykeyz APIs
 
 Key things to remember:
 
 - Lose the verbose `define_` prefix
 - Every modmap and keymap must now be named
 - Conditions are optional and passed using the `when` named argument
-- Contitions are now all passed a context object (see the `README`)
+- Conditions are now all passed a context object (see the `README`)
 
 **timeout**
 
