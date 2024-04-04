@@ -10,14 +10,14 @@ from evdev import InputEvent
 from evdev.ecodes import EV_KEY, EV_REL
 from lib.xorg_mock import set_window
 
-from keyszer import transform
-from keyszer.config_api import *
-from keyszer.models.action import Action
-from keyszer.models.key import Key
+from xwaykeyz import transform
+from xwaykeyz.config_api import *
+from xwaykeyz.models.action import Action
+from xwaykeyz.models.key import Key
 
 # from lib.uinput_stub import UInputStub
-from keyszer.output import setup_uinput
-from keyszer.transform import boot_config, on_event, reset_transform
+from xwaykeyz.output import setup_uinput
+from xwaykeyz.transform import boot_config, on_event, reset_transform
 
 CONFIG_HEADER = b"""
 import re

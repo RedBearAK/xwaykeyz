@@ -7,13 +7,13 @@ from evdev.events import InputEvent
 from lib.api import *
 from lib.uinput_stub import UInputStub
 
-from keyszer import input
-from keyszer.config_api import *
-from keyszer.lib import logger
-from keyszer.models.action import Action
-from keyszer.models.key import Key
-from keyszer.output import setup_uinput
-from keyszer.transform import (
+from xwaykeyz import input
+from xwaykeyz.config_api import *
+from xwaykeyz.lib import logger
+from xwaykeyz.models.action import Action
+from xwaykeyz.models.key import Key
+from xwaykeyz.output import setup_uinput
+from xwaykeyz.transform import (
     boot_config,
     is_suspended,
     on_event,

@@ -33,7 +33,7 @@ def has_access_to_uinput():
     from evdev.uinput import UInputError
 
     try:
-        from keyszer.output import setup_uinput  # noqa: F401
+        from xwaykeyz.output import setup_uinput  # noqa: F401
 
         setup_uinput()
         return True
@@ -204,7 +204,7 @@ Please check access permissions for /dev/uinput."""
         log("WATCH: Watching for new devices to hot-plug.")
 
     # Enter event loop
-    from keyszer.input import main_loop
+    from xwaykeyz.input import main_loop
 
     main_loop(args.devices, args.watch)
 

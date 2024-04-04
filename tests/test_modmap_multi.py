@@ -7,11 +7,11 @@ import pytest_asyncio
 from lib.api import PRESS, RELEASE, hit, press, release, repeat
 from lib.uinput_stub import UInputStub
 
-from keyszer.config_api import modmap, multipurpose_modmap, reset_configuration
-from keyszer.lib import logger
-from keyszer.models.key import Key
-from keyszer.output import setup_uinput
-from keyszer.transform import boot_config, reset_transform
+from xwaykeyz.config_api import modmap, multipurpose_modmap, reset_configuration
+from xwaykeyz.lib import logger
+from xwaykeyz.models.key import Key
+from xwaykeyz.output import setup_uinput
+from xwaykeyz.transform import boot_config, reset_transform
 
 logger.VERBOSE = True
 
