@@ -1,10 +1,10 @@
-# keyszer - a smart key remapper for Linux/X11
+# xwaykeyz - a smart key remapper for Linux (X11 and Wayland)
 
-[![latest version](https://badgen.net/pypi/v/keyszer?label=beta)](https://github.com/RedBearAK/xwaykeyz/releases)
+<!-- [![latest version](https://badgen.net/pypi/v/keyszer?label=beta)](https://github.com/RedBearAK/xwaykeyz/releases)
 [![python 3.10](https://badgen.net/badge/python/3.10/blue)]()
 [![license](https://badgen.net/badge/license/GPL3/keyszer?color=cyan)](https://github.com/RedBearAK/xwaykeyz/blob/main/LICENSE)
 [![code quality](https://badgen.net/lgtm/grade/g/RedBearAK/xwaykeyz/js?label=code+quality)](https://lgtm.com/projects/g/RedBearAK/xwaykeyz/?mode=list)
-[![discord](https://badgen.net/badge/icon/discord?icon=discord&label&color=pink)](https://discord.gg/nX6qSC8mer)
+[![discord](https://badgen.net/badge/icon/discord?icon=discord&label&color=pink)](https://discord.gg/nX6qSC8mer) -->
 
 <!-- [![vulnerabilities](https://badgen.net/snyk/RedBearAK/xwaykeyz)](https://snyk.io/test/github/RedBearAK/xwaykeyz?targetFile=package.json) -->
 
@@ -14,8 +14,14 @@
 ![build and CI status](https://badgen.net/github/checks/RedBearAK/xwaykeyz)
 
 
+## Forked from keyszer
+
+
 Keyszer is a smart key remapper for Linux (and X11) written in Python. It's similar to `xmodmap` but allows far more flexible remappings.  Keyszer was forked from [xkeysnail](https://github.com/mooz/xkeysnail) which no longer seems actively maintained.
 
+Xwaykeyz was forked from keyszer, and supports some Wayland environments (GNOME, KDE Plasma, Cinnamon, Sway, Hyprland). The many references in this README to keyszer will be updated at some point to be more relevant for `xwaykeyz`. 
+
+Feel free to pronounce it however you want: Ex-Way-Keys, Sway-Keys, or Zway-Keyzzzzzz...
 
 ### How does it work?
 
