@@ -16,12 +16,17 @@
 
 ## Forked from keyszer
 
+The `xwaykeyz` keymapper was forked from `keyszer`, and supports some Wayland environments (GNOME, KDE Plasma, Cinnamon, Sway, Hyprland). The many references in this README to keyszer will be updated at some point to be more relevant for `xwaykeyz`. 
 
-Keyszer is a smart key remapper for Linux (and X11) written in Python. It's similar to `xmodmap` but allows far more flexible remappings.  Keyszer was forked from [xkeysnail](https://github.com/mooz/xkeysnail) which no longer seems actively maintained.
+Keyszer is a smart key remapper for Linux (and X11) written in Python. It's similar to `xmodmap` but allows far more flexible remappings.  Keyszer was forked from [xkeysnail](https://github.com/mooz/xkeysnail), which no longer seems actively maintained. 
 
-Xwaykeyz was forked from keyszer, and supports some Wayland environments (GNOME, KDE Plasma, Cinnamon, Sway, Hyprland). The many references in this README to keyszer will be updated at some point to be more relevant for `xwaykeyz`. 
+Feel free to pronounce `xwaykeyz` however you want: Ex-Way-Keys, Sway-Keys, or Zway-Keyzzzzzz... 
 
-Feel free to pronounce it however you want: Ex-Way-Keys, Sway-Keys, or Zway-Keyzzzzzz...
+## Everything below this header may need to be updated
+
+This section will slowly move down the README as I update each section of the README to reflect that this is a README for `xwaykeyz` which has been forked from `keyszer` and renamed. 
+
+* * * 
 
 ### How does it work?
 
