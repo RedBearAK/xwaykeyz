@@ -1,6 +1,9 @@
 import os
 import abc
-import dbus
+try:
+    import dbus
+except ModuleNotFoundError:
+    dbus = None
 import json
 import time
 import i3ipc

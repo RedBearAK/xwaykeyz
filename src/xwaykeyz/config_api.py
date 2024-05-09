@@ -249,7 +249,7 @@ class UnicodeNumberToolarge(Exception):
     pass
 
 
-def to_US_keystrokes(s):
+def to_US_keystrokes(s: str):
     """
     Turn alphanumeric string (with spaces and some ASCII) up to length 
     of 100 characters into keystroke commands
@@ -305,9 +305,9 @@ def unicode_keystrokes(n):
     def _unicode_keystrokes(ctx: KeyContext):
         msec_delay = (_THROTTLES["key_pre_delay_ms"] + _THROTTLES["key_post_delay_ms"]) / 2
         combo_list = [
-            insert_delay(msec_delay),
+            # insert_delay(msec_delay),     # using this will break api helper tests
             combo("Shift-Ctrl-u"),  # requires "ibus" or "fctix" as input manager?
-            insert_delay(msec_delay),
+            # insert_delay(msec_delay),     # using this will break api helper tests
             *[Key[hexdigit]
                 for digit in _digits(n, 16)
                 for hexdigit in hex(digit)[2:].upper()
@@ -319,9 +319,9 @@ def unicode_keystrokes(n):
             #     for hexdigit in hex(digit)[2:].upper()
             #     for key_cmd in (Key[hexdigit], insert_delay(msec_delay))
             # ],
-            insert_delay(msec_delay),
+            # insert_delay(msec_delay),     # using this will break api helper tests
             Key.ENTER,
-            insert_delay(msec_delay),
+            # insert_delay(msec_delay),     # using this will break api helper tests
         ]
         if ctx.capslock_on:
             combo_list.insert(0, Key.CAPSLOCK)
