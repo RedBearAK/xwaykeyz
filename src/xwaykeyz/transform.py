@@ -2,7 +2,8 @@ import asyncio
 import time
 import inspect
 
-from evdev import ecodes
+from evdev import ecodes, InputEvent
+from typing import Dict, List
 
 from .config_api import escape_next_key, get_configuration, ignore_key, _ENVIRON
 from .lib import logger
@@ -15,11 +16,12 @@ from .models.key import Key
 from .models.keymap import Keymap
 from .models.keystate import Keystate
 from .models.modifier import Modifier
+from .models.modmap import Modmap, MultiModmap
 from .output import Output
 
-_MODMAPS = None
-_MULTI_MODMAPS = None
-_KEYMAPS = None
+_MODMAPS: List[Modmap] = None
+_MULTI_MODMAPS: List[MultiModmap] = None
+_KEYMAPS: List[Keymap] = None
 _TIMEOUTS = None
 
 
@@ -37,7 +39,7 @@ def boot_config():
 
 _active_keymaps = None
 _output = Output()
-_key_states = {}
+_key_states: Dict[Key, Keystate] = {}
 _sticky = {}
 
 
@@ -79,7 +81,7 @@ def is_sticky(key):
     return False
 
 
-def update_pressed_states(keystate):
+def update_pressed_states(keystate: Keystate):
     # release
     if keystate.action == Action.RELEASE:
         del _key_states[keystate.inkey]
@@ -113,7 +115,7 @@ def resume_keys():
     _suspend_timer = None
 
     # keys = get_suspended_mods()
-    states = [x for x in _key_states.values() if x.suspended]
+    states: List[Keystate] = [x for x in _key_states.values() if x.suspended]
     if len(states) > 0:
         debug("resuming keys:", [x.key for x in states])
 
@@ -192,7 +194,7 @@ def suspend_keys(timeout):
     global _suspend_timer
     global _last_suspend_timeout
     debug("suspending keys:", pressed_mods_not_exerted_on_output())
-    states = [x for x in _key_states.values() if x.is_pressed()]
+    states: List[Keystate] = [x for x in _key_states.values() if x.is_pressed()]
     for s in states:
         s.suspended = True
     loop = asyncio.get_event_loop()
@@ -220,7 +222,7 @@ def dump_diagnostics():
 # ─── COMBO CONTEXT LOGGING ────────────────────────────────────────────────────────
 
 
-def log_combo_context(combo, ctx, keymap, _active_keymaps):
+def log_combo_context(combo, ctx: KeyContext, keymap: Keymap, _active_keymaps: List[Keymap]):
     """Log context around usage of combo"""
     import textwrap
 
@@ -251,13 +253,13 @@ _last_key = None
 
 
 # translate keycode (like xmodmap)
-def apply_modmap(keystate, context):
+def apply_modmap(keystate: Keystate, context: KeyContext):
     inkey = keystate.inkey
     keystate.key = inkey
     # first modmap is always the default, unconditional
     active_modmap = _MODMAPS[0]
     # debug("active", active_modmap)
-    conditional_modmaps = _MODMAPS[1:]
+    conditional_modmaps: List[Modmap] = _MODMAPS[1:]
     # debug("conditionals", conditional_modmaps)
     if conditional_modmaps:
         for modmap in conditional_modmaps:
@@ -270,9 +272,9 @@ def apply_modmap(keystate, context):
         keystate.key = active_modmap[inkey]
 
 
-def apply_multi_modmap(keystate, context):
+def apply_multi_modmap(keystate: Keystate, context: KeyContext):
     active_multi_modmap = _MULTI_MODMAPS[0]
-    conditional_multimaps = _MULTI_MODMAPS[1:]
+    conditional_multimaps: List[MultiModmap] = _MULTI_MODMAPS[1:]
     if conditional_multimaps:
         for modmap in conditional_multimaps:
             if keystate.inkey in modmap:
@@ -297,7 +299,7 @@ def find_keystate_or_new(inkey, action):
     if inkey not in _key_states:
         return Keystate(inkey=inkey, action=action)
 
-    ks = _key_states[inkey]
+    ks: Keystate = _key_states[inkey]
     ks.prior = ks.copy()
     delattr(ks.prior, "prior")
     ks.action = action
@@ -328,13 +330,12 @@ from .lib.window_context import WindowContextProvider
 window_context = WindowContextProvider(session_type, wl_desktop_env)
 
 # @benchit
-def on_event(event, device):
+def on_event(event: InputEvent, device):
     # we do not attempt to transform non-key events
     # or any events with no device (startup key-presses)
     if event.type != ecodes.EV_KEY or device is None:
         _output.send_event(event)
         return
-
 
     # Give KeyContext the device and window context objects
     context = KeyContext(device, window_context)
@@ -365,7 +366,7 @@ def on_event(event, device):
     on_key(ks, context)
 
 
-def on_mod_key(keystate, context):
+def on_mod_key(keystate: Keystate, context):
     hold_output = False
     should_suspend = False
 
@@ -405,7 +406,7 @@ def on_mod_key(keystate, context):
             keystate.exerted_on_output = False
 
 
-def on_key(keystate, context):
+def on_key(keystate: Keystate, context):
     global _last_key
 
     key, action = (keystate.key, keystate.action)
@@ -448,7 +449,7 @@ def on_key(keystate, context):
         _last_key = key
 
 
-def transform_key(key, action, ctx):
+def transform_key(key, action, ctx: KeyContext):
     global _active_keymaps
     is_top_level = False
 
@@ -508,7 +509,7 @@ def transform_key(key, action, ctx):
 
 
 # binds the first input modifier to the first output modifier
-def simple_sticky(combo, output_combo):
+def simple_sticky(combo: Combo, output_combo: Combo):
     inmods = combo.modifiers
     outmods = output_combo.modifiers
     if len(inmods) == 0 or len(outmods) == 0:
@@ -517,7 +518,7 @@ def simple_sticky(combo, output_combo):
     outkey = outmods[0].get_key()
 
     if inkey in _key_states:
-        ks = _key_states[inkey]
+        ks: Keystate = _key_states[inkey]
         if ks.exerted_on_output:
             key_in_output = any([inkey in mod.keys for mod in outmods])
             if not key_in_output:

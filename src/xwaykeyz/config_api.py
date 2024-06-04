@@ -9,6 +9,7 @@ import inspect
 from inspect import signature
 from pprint import pformat as ppf
 from pprint import pprint as pp
+from typing import Dict, List, Optional
 
 from .lib.logger import error, debug
 from .lib import window_context
@@ -30,11 +31,11 @@ immediately = Trigger.IMMEDIATELY
 
 # keycode translation
 # e.g., { Key.CAPSLOCK: Key.LEFT_CTRL }
-_MODMAPS = []
+_MODMAPS: List[Modmap] = []
 
 # multipurpose keys
 # e.g, {Key.LEFT_CTRL: [Key.ESC, Key.LEFT_CTRL, Action.RELEASE]}
-_MULTI_MODMAPS = []
+_MULTI_MODMAPS: List[MultiModmap] = []
 
 TIMEOUT_DEFAULTS = {
     "multipurpose": 1,
@@ -140,7 +141,7 @@ def throttle_delays(key_pre_delay_ms=0, key_post_delay_ms=0):
 
 
 # keymaps
-_KEYMAPS = []
+_KEYMAPS: List[Keymap] = []
 
 # hotkeys for debugging
 DUMP_DIAGNOSTICS_KEY = Key.F15
@@ -632,7 +633,7 @@ def old_style_condition_to_fn(condition):
     """converts old API style condition into a new style conditional"""
     condition_fn = None
 
-    def re_search(regex):
+    def re_search(regex: re.Pattern):
         def fn(ctx: KeyContext):
             return regex.search(ctx.wm_class)
 
