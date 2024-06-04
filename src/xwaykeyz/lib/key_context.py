@@ -12,7 +12,6 @@ class KeyContext:
     def _query_window_context(self):
         # cache this,  think it might be expensive
         if self._X_ctx is None:
-            # self._X_ctx = get_xorg_context()
             self._X_ctx = self._win_ctx_provider.get_window_context()
 
     @property
