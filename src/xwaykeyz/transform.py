@@ -5,7 +5,7 @@ import inspect
 from evdev import ecodes, InputEvent
 from typing import Dict, List
 
-from .config_api import escape_next_key, get_configuration, ignore_key, _ENVIRON
+from .config_api import escape_next_key, get_configuration, ignore_key, _ENVIRON, _REPEATING_KEYS
 from .lib import logger
 from .lib.key_context import KeyContext
 from .lib.logger import debug
@@ -329,8 +329,32 @@ wl_desktop_env  = _ENVIRON['wl_desktop_env']
 from .lib.window_context import WindowContextProvider
 window_context = WindowContextProvider(session_type, wl_desktop_env)
 
+ignore_repeating_keys = _REPEATING_KEYS['ignore_repeating_keys']
+
+
 # @benchit
 def on_event(event: InputEvent, device):
+
+    # EXPERIMENTAL: Pass through "repeat" key events without further processing.
+    # Drastically decreases CPU usage when holding a non-modifier key down (e.g., gaming).
+    # What negative side effects can we expect from doing this? Only obscure edge cases? 
+    # Meaning of "magic numbers" for event.value (source: `evtest` output): 
+    #   0 == 'released'
+    #   1 == 'pressed'
+    #   2 == 'repeated'
+    # Pass through can be disabled using ignore_repeating_keys() API function in config file.
+    # Usage in config: ignore_repeating_keys(False)
+    # 
+    if ignore_repeating_keys and event.value == 2:
+        if logger.VERBOSE:
+            print()     # give some space from regular event blocks in the log
+            debug(
+                "### Passing through repeating key event unprocessed to reduce CPU usage. ###", 
+                ctx="--"
+            )
+        _output.send_event(event)
+        return
+
     # we do not attempt to transform non-key events
     # or any events with no device (startup key-presses)
     if event.type != ecodes.EV_KEY or device is None:
@@ -338,9 +362,9 @@ def on_event(event: InputEvent, device):
         return
 
     # Give KeyContext the device and window context objects
-    context = KeyContext(device, window_context)
-    action = Action(event.value)
-    key = Key(event.code)
+    context                     = KeyContext(device, window_context)
+    action                      = Action(event.value)
+    key                         = Key(event.code)
 
     ks = find_keystate_or_new(
         inkey=key,
@@ -453,7 +477,7 @@ def transform_key(key, action, ctx: KeyContext):
     global _active_keymaps
     is_top_level = False
 
-    # if we do have window context information we essentially short-circuit
+    # if we do not have window context information we essentially short-circuit
     # the keymapper, acting in essentially a pass thru mode sending what is
     # typed straight thru from input to output
     if ctx.x_error:

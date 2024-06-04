@@ -23,11 +23,11 @@ from .models.modifier import Modifier
 from .models.modmap import Modmap, MultiModmap
 
 # GLOBALS
-bind = ComboHint.BIND
-escape_next_key = ComboHint.ESCAPE_NEXT
-ignore_key = ComboHint.IGNORE
+bind                            = ComboHint.BIND
+escape_next_key                 = ComboHint.ESCAPE_NEXT
+ignore_key                      = ComboHint.IGNORE
 
-immediately = Trigger.IMMEDIATELY
+immediately                     = Trigger.IMMEDIATELY
 
 # keycode translation
 # e.g., { Key.CAPSLOCK: Key.LEFT_CTRL }
@@ -46,7 +46,6 @@ TIMEOUT_DEFAULTS = {
 
 # multipurpose timeout
 _TIMEOUTS = TIMEOUT_DEFAULTS
-
 
 _ENVIRON = {
         'session_type'  : 'x11',
@@ -138,6 +137,19 @@ def throttle_delays(key_pre_delay_ms=0, key_post_delay_ms=0):
                         'key_post_delay_ms': clamp(key_post_delay_ms, ms_min, ms_max) })
     debug(  f'THROTTLES: Pre-key: {_THROTTLES["key_pre_delay_ms"]}ms, '
             f'Post-key: {_THROTTLES["key_post_delay_ms"]}ms')
+
+
+_REPEATING_KEYS = {
+    'ignore_repeating_keys': True,
+}
+
+
+def ignore_repeating_keys(true_or_false: bool = True):
+    """Toggle at startup whether to ignore (default) or process repeated keys."""
+    if true_or_false not in [True, False]:
+        raise ValueError("The ignore_repeated_keys() function wants True or False.")
+    _REPEATING_KEYS['ignore_repeating_keys'] = true_or_false
+    debug(f"Ignore repeating keys  = '{true_or_false}'")
 
 
 # keymaps
