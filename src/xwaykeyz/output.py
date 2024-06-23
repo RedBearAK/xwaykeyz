@@ -128,9 +128,9 @@ class Output:
         debug(action, key, time.time(), ctx="OO")
         self.__send_sync()
 
-    def send_combo(self, combo):
-        released_mod_keys = []
-        pressed_mod_keys = []
+    def send_combo(self, combo: Combo):
+        released_mod_keys       = []
+        pressed_mod_keys        = []
 
         mod_keys_we_need_to_lift = self._pressed_modifier_keys.copy()
         mods_we_need_to_press = combo.modifiers.copy()
@@ -142,27 +142,36 @@ class Output:
                     mods_we_need_to_press.remove(modifier)
 
         for key in mod_keys_we_need_to_lift:
+            sleep_ms(_THROTTLES['key_pre_delay_ms'])
             self.send_key_action(key, RELEASE)
+            sleep_ms(_THROTTLES['key_post_delay_ms'])
             released_mod_keys.append(key)
 
         for key in [mod.get_key() for mod in mods_we_need_to_press]:
+            sleep_ms(_THROTTLES['key_pre_delay_ms'])
             self.send_key_action(key, PRESS)
+            sleep_ms(_THROTTLES['key_post_delay_ms'])
             pressed_mod_keys.append(key)
 
         # normal key portion of the combo
         sleep_ms(_THROTTLES['key_pre_delay_ms'])
         self.send_key_action(combo.key, PRESS)
+        sleep_ms(6)
         self.send_key_action(combo.key, RELEASE)
         sleep_ms(_THROTTLES['key_post_delay_ms'])
 
         for modifier in reversed(pressed_mod_keys):
+            sleep_ms(_THROTTLES['key_pre_delay_ms'])
             self.send_key_action(modifier, RELEASE)
+            sleep_ms(_THROTTLES['key_post_delay_ms'])
 
         if self.__is_suspending():  # sleep the keys
             self._suspended_mod_keys.extend(released_mod_keys)
         else:  # reassert the keys
             for modifier in reversed(released_mod_keys):
+                sleep_ms(_THROTTLES['key_pre_delay_ms'])
                 self.send_key_action(modifier, PRESS)
+                sleep_ms(_THROTTLES['key_post_delay_ms'])
 
     def send_key(self, key):
         self.send_combo(Combo(None, key))
