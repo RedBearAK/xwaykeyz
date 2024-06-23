@@ -38,7 +38,7 @@ _KEYBOARD_KEYS.update(_MOUSE_BUTTONS)
 # We also want trackpad/touchpad buttons, so let's enumerate those and add them
 # back into the set of buttons we'll watch and use
 _TOUCHPAD_BUTTONS = {
-    330: ["BTN_TOOL_FINGER", "BTN_TOUCHPAD"],                   # touchpad click
+    330: ["BTN_TOOL_FINGER", "BTN_TOUCH", "BTN_TOUCHPAD"],      # touchpad click
     333: "BTN_TOOL_DOUBLETAP",                                  # touchpad double tap
     334: "BTN_TOOL_TRIPLETAP",                                  # touchpad triple tap
     335: "BTN_TOOL_QUADTAP",                                    # touchpad quadruple tap
