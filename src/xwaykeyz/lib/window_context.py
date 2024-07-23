@@ -419,7 +419,14 @@ class Wl_Cinnamon_WindowContext(WindowContextProviderInterface):
 
         path_toshy_focused_wdw      = "/app/toshy/ToshyFocusedWindow"
         obj_toshy_focused_wdw       = "app.toshy.ToshyFocusedWindow"
-        proxy_toshy_focused_wdw     = session_bus.get_object("org.Cinnamon", path_toshy_focused_wdw)
+        proxy_toshy_focused_wdw     = None
+
+        while proxy_toshy_focused_wdw is None:
+            try:
+                proxy_toshy_focused_wdw = session_bus.get_object("org.Cinnamon", path_toshy_focused_wdw)
+            except DBusException as dbus_err:
+                error(f"Problem getting D-Bus object: \n\t{dbus_err}")
+                time.sleep(3)
         self.iface_toshy_focused_wdw = dbus.Interface(proxy_toshy_focused_wdw, obj_toshy_focused_wdw)
 
     @classmethod
