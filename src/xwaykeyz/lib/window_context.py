@@ -370,10 +370,7 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         self.wm_name            = None
         self.res_name           = None
 
-        # self.toshy_dbus_obj     = 'org.toshy.Toshy'
-        # self.toshy_dbus_path    = '/org/toshy/Toshy'
-
-        # Rename the D-Bus object/path more specifically for Plasma (there are others, like Wlroots)
+        # Renamed the D-Bus object/path specifically for Plasma (there are others, like Wlroots)
         self.toshy_dbus_obj     = 'org.toshy.Plasma'
         self.toshy_dbus_path    = '/org/toshy/Plasma'
 
