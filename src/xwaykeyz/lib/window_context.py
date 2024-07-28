@@ -36,19 +36,26 @@ class WindowContextProviderInterface(abc.ABC):
     def get_supported_environments(cls):
         """
         This method should return a list of environments that the subclass 
-        supports.
+        supports, in the form [('session_type', 'desktop_environment')].
 
         Each environment should be represented as a tuple. For example, if 
-        a subclass supports the environments 'x11' and 'wayland', this method 
-        should return [('x11', None), ('wayland', None)].
+        a subclass supports the session types 'x11' and 'wayland', regardless
+        of the desktop environment (this is unlikely for Wayland), this method 
+        should return [('x11', None), ('wayland', None)]. The Xorg provider
+        subclass returns [('x11', None)], meaning it supports any Linux desktop
+        environment on an X11/Xorg session. Wayland methods are usually going
+        to be specific to a certain compositor, until more universal standards 
+        evolve. 
 
         If an environment is specific to a certain desktop environment, the 
         desktop environment should be included in the tuple. For example, if 
-        a subclass supports the 'wayland' environment specifically on the 
+        a subclass supports the 'wayland' session specifically only for the 
         'gnome' desktop, this method should return [('wayland', 'gnome')].
 
-        :returns: A list of tuples, each representing an environment supported 
-        by the subclass.
+        At this time only 'x11' and 'wayland' session types are in common use.
+
+        :returns: A list of tuples, each representing an environment combination
+        of session type and desktop environment supported by the subclass.
         """
 
     @abc.abstractmethod
@@ -83,6 +90,24 @@ class WindowContextProviderInterface(abc.ABC):
 
         :returns: A dictionary containing window context information.
         """
+
+
+# An example class to copy and paste to start supporting a new environment
+class Example_WindowContext(WindowContextProviderInterface):
+    """Window context provider object for [Example] environments"""
+
+    def __init__(self):
+        """Set up whatever the whole class instance needs here"""
+        pass
+
+    @classmethod
+    def get_supported_environments(cls):
+        """This class supports the [Example environment] on [session type]"""
+        return [('wayland', 'Example_Environment_ID')]
+
+    def get_window_context(self):
+        """Return window context to KeyContext"""
+        pass
 
 
 class Wl_sway_WindowContext(WindowContextProviderInterface):
@@ -140,7 +165,6 @@ class Wl_sway_WindowContext(WindowContextProviderInterface):
     def get_window_context(self):
         """Return window context to KeyContext"""
         return self.get_active_wdw_ctx_sway_ipc()
-
 
 
 class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
@@ -287,7 +311,7 @@ class Wl_Wlroots_WindowContext(WindowContextProviderInterface):
         """
         This class supports the Wlroots environment on Wayland, as long as the 
         'wlr_foreign_toplevel_management_unstable_v1' protocol is implemented in 
-        the Wayland compositor. All compositors using current wlroots should work.
+        the Wayland compositor. 
         """
         return [
             ('wayland', 'wlroots'),
@@ -346,8 +370,9 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         self.wm_name            = None
         self.res_name           = None
 
-        self.toshy_dbus_obj     = 'org.toshy.Toshy'
-        self.toshy_dbus_path    = '/org/toshy/Toshy'
+        # Renamed the D-Bus object/path specifically for Plasma (there are others, like Wlroots)
+        self.toshy_dbus_obj     = 'org.toshy.Plasma'
+        self.toshy_dbus_path    = '/org/toshy/Plasma'
 
         while True:
             try:
