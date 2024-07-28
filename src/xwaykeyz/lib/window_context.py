@@ -191,7 +191,7 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
     def get_active_wdw_ctx_hyprpy(self):
         try:
             window_info         = self.hypr_inst.get_active_window()
-            debug(f'CTX_HYPR: Using "hyprpy" for windows context.')
+            debug(f'CTX_HYPR: Using "hyprpy" for windows context.', ctx='CX')
             self.wm_class       = window_info.wm_class
             self.wm_name        = window_info.title
             return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
@@ -220,7 +220,7 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
             if self.first_run or self.sock is None:
                 try:
                     self._open_socket()
-                    debug(f'CTX_HYPR: Using IPC socket for window context.')
+                    debug(f'CTX_HYPR: Using IPC socket for window context.', ctx='CX')
                 except (socket.error, OSError, EnvironmentError) as conn_err:
                     error(f'ERROR: Problem opening Hyprland IPC socket.\n\t{conn_err}')
                     return self.get_active_wdw_ctx_hypr_shell() # Fallback to shell method
@@ -264,7 +264,7 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
             window_info: dict   = json.loads(wdw_info_str) # Type hint for VSCode "get()" highlight
             self.wm_class       = window_info.get("class", "hypr-context-error")
             self.wm_name        = window_info.get("title", "hypr-context-error")
-            debug(f'CTX_HYPR: Using shell command (hyprctl) for window context (FALLBACK!).')
+            debug(f'CTX_HYPR: Using shell command (hyprctl) for window context (FALLBACK!).', ctx='CX')
             return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
         except json.JSONDecodeError as json_err:
             debug(f'No active window found or empty response from "hyprctl".\n\t{json_err}')
@@ -350,7 +350,7 @@ class Wl_Wlroots_WindowContext(WindowContextProviderInterface):
         self.app_id         = new_wdw_info_dct.get('app_id', '')
         self.title          = new_wdw_info_dct.get('title', '')
 
-        debug(f"WLR_DBUS_SVC: Using D-Bus interface '{self.toshy_dbus_obj}' for window context")
+        debug(f"WLR_DBUS_SVC: Using D-Bus interface '{self.toshy_dbus_obj}' for window context", ctx='CX')
 
         return {"wm_class": self.app_id, "wm_name": self.title, "x_error": False}
 
@@ -428,7 +428,7 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         # 'resourceName' has no X11/Xorg equivalent (tends to be process name?)
         self.res_name       = new_wdw_info_dct.get('resource_name', '')
 
-        debug(f"KDE_DBUS_SVC: Using D-Bus interface '{self.toshy_dbus_obj}' for window context")
+        debug(f"KDE_DBUS_SVC: Using D-Bus interface '{self.toshy_dbus_obj}' for window context", ctx='CX')
 
         return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
 
@@ -473,7 +473,7 @@ class Wl_Cinnamon_WindowContext(WindowContextProviderInterface):
             print(f"Error querying Cinnamon extension: {dbus_err}")
             return NO_CONTEXT_WAS_ERROR
 
-        debug(f"CINN_EXT: Using 'Toshy Focused Window Info' extension for window context.")
+        debug(f"CINN_EXT: Using 'Toshy Focused Window Info' extension for window context.", ctx='CX')
         return {"wm_class": wm_class, "wm_name": wm_name, "x_error": False}
 
 
@@ -556,7 +556,7 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
             else:
                 # No exceptions were thrown, so this extension is now the preferred one
                 self.last_good_ext_uuid = extension_uuid
-                debug(f"SHELL_EXT: Using UUID '{self.last_good_ext_uuid}' for window context")
+                debug(f"SHELL_EXT: Using UUID '{self.last_good_ext_uuid}' for window context", ctx='CX')
                 return context
 
         # If we reach here, it means all extensions have failed
@@ -655,7 +655,7 @@ class Xorg_WindowContext(WindowContextProviderInterface):
 
     @classmethod
     def get_supported_environments(cls):
-        # This class supports any desktop environment on X11
+        # This class supports any desktop environment in X11/Xorg sessions
         return [('x11', None)]
 
     def get_window_context(self):
@@ -675,7 +675,7 @@ class Xorg_WindowContext(WindowContextProviderInterface):
                 # bypass (COMPOUND_TEXT) encoding problems when non-ASCII
                 # characters are in the window name string.
                 # Xlib cannot deal with COMPOUND_TEXT encoding and ends up
-                # returning an empty "bytes object".
+                # returning an empty "bytes object": b''
                 
                 # Older form: 
                 # wm_name = window.get_full_text_property(self._display.get_atom("_NET_WM_NAME"))
@@ -692,6 +692,8 @@ class Xorg_WindowContext(WindowContextProviderInterface):
                 pair    = window.get_wm_class()
                 if pair:
                     wm_class = str(pair[1])
+            
+            debug(f"CTX_X11: Using Xlib for window context", ctx='CX')
 
             return {"wm_class": wm_class, "wm_name": wm_name, "x_error": False}
 
