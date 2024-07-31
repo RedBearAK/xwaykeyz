@@ -24,7 +24,6 @@ _MULTI_MODMAPS: List[MultiModmap] = None
 _KEYMAPS: List[Keymap] = None
 _TIMEOUTS = None
 
-
 def boot_config():
     global _MODMAPS
     global _MULTI_MODMAPS
