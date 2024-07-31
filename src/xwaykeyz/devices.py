@@ -138,7 +138,7 @@ class DeviceFilter:
     def __init__(self, matches):
         self.matches = matches
         if not matches:
-            info("Autodetecting all keyboards (--device not specified)")
+            info("Autodetecting all keyboards (no '--devices' option or 'devices_api' used)")
 
     def is_virtual_device(self, device: InputDevice):
         if VIRT_DEVICE_PREFIX in device.name:

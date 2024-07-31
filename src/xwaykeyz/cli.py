@@ -1,10 +1,9 @@
 from .lib import logger
 from .lib.logger import debug, error, info, log
 from .version import __description__, __name__, __version__
-
+from typing import List
 
 CONFIG_NAMESPACE = "CFG:"
-
 
 def _gen_config_header(path):
     return bytes("import re;"
@@ -202,6 +201,27 @@ Please check access permissions for /dev/uinput."""
 
     if args.watch:
         log("WATCH: Watching for new devices to hot-plug.")
+
+    ###############################################################################################
+    # Let the user pass in devices args from the config file with the `devices_api()` function,
+    # instead of using `--devices` on command line. 
+
+    from xwaykeyz.config_api import _DEVICE_ARGS
+
+    _only_devices: List[str]        = _DEVICE_ARGS['only_devices']
+    # _add_devices: List[str]         = _DEVICE_ARGS['add_devices']
+    # _ignore_devices: List[str]      = _DEVICE_ARGS['ignore_devices']
+
+    # Override with API input only if no CLI input
+    if not args.devices and _only_devices:
+        debug(f"Using device arguments from devices_api call in config...")
+        print(f"\t{_only_devices}")
+        args.devices = _only_devices
+    elif args.devices:
+        debug(f"Using device arguments from command line '--devices' option...")
+
+    # 
+    ###############################################################################################
 
     # Enter event loop
     from xwaykeyz.input import main_loop

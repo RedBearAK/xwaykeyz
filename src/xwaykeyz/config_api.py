@@ -47,10 +47,70 @@ TIMEOUT_DEFAULTS = {
 # multipurpose timeout
 _TIMEOUTS = TIMEOUT_DEFAULTS
 
+_DEVICE_ARGS: Dict[str, str] = {
+    'only_devices': [],
+    'add_devices': [],
+    'ignore_devices': [],
+}
+
+# Defaults are set here so that X11/Xorg environments keep 
+# working without needing to use API in config file.
 _ENVIRON = {
         'session_type'  : 'x11',
         'wl_desktop_env': None
 }
+
+
+def devices_api(*,
+        only_devices: List[str]=[],
+        # add_devices: List[str]=[],
+        # ignore_devices: List[str]=[]
+        ):
+    """
+    API function to specify device names to A) replicate the command-line
+    '--devices' arguments, or device names to B) add (for instances where a
+    device does not get naturally "grabbed" at startup), or device names
+    to C) ignore (for instances where a device does get grabbed, but should
+    not be grabbed at startup).
+
+    TODO: Some work will need to be done in the grab function to filter
+    out the devices to ignore. The CLI option only sets devices to grab.
+
+    Populates the `_DEVICE_ARGS` dictionary variable, to be returned to
+    `transform.py` when `get_configuration()` is called.
+
+    First parameter '*,' requires all arguments to be named, allows having
+    any named parameter by itself, or multiple parameters can be used in
+    any order, since all have to be named.
+    """
+    global _DEVICE_ARGS
+
+    def validate_list_of_strings(param, param_name):
+        if not isinstance(param, list):
+            error(f"The '{param_name}' parameter must be a list.")
+            raise ValueError
+        if not all(isinstance(item, str) for item in param):
+            error(f"All items in the '{param_name}' parameter must be strings.")
+            raise ValueError
+
+    validate_list_of_strings(only_devices, 'only_devices')
+    # validate_list_of_strings(add_devices, 'add_devices')
+    # validate_list_of_strings(ignore_devices, 'ignore_devices')
+
+    # if add_devices:
+    #     error("The 'add_devices' parameter is not supported yet. Setting to empty list.")
+    #     add_devices = []
+
+    # if ignore_devices:
+    #     error("The 'ignore_devices' parameter is not supported yet. Setting to empty list.")
+    #     ignore_devices = []
+
+    _DEVICE_ARGS = {
+        'only_devices':     only_devices,
+        # 'add_devices':      add_devices,
+        # 'ignore_devices':   ignore_devices
+    }
+
 
 
 # make window_context provider classes self-documenting
@@ -179,6 +239,7 @@ def get_configuration():
     """API for exporting the current configuration"""
     global _MODMAPS
     global _MULTI_MODMAPS
+    global _DEVICE_ARGS
 
     # setup modmaps
     conditionals = [mm for mm in _MODMAPS if mm.conditional]
