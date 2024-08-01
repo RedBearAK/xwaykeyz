@@ -356,7 +356,7 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
     def get_active_wdw_ctx_hyprpy(self):
         try:
             window_info         = self.hypr_inst.get_active_window()
-            debug(f'CTX_HYPR: Using "hyprpy" for windows context.', ctx='CX')
+            debug(f"CTX_HYPR: Using 'hyprpy' for window context.", ctx='CX')
             self.wm_class       = window_info.wm_class
             self.wm_name        = window_info.title
             return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
@@ -365,7 +365,7 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
                 debug('No active window found or incomplete window data.')
                 return  {"wm_class": "hyprpy_no_window", "wm_name": "hyprpy_no_window", "x_error": False}
             else:
-                error(f'ERROR: Problem getting active window context using "hyprpy".\n\t{e}')
+                error(f"ERROR: Problem getting active window context using 'hyprpy'.\n\t{e}")
                 return self.get_active_wdw_ctx_hypr_ipc()
 
     def _open_socket(self):
