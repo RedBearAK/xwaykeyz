@@ -230,6 +230,7 @@ class Wl_Wlroots_WindowContext(WindowContextProviderInterface):
 
             # Specific DEs/WMs that should work with "wlroots" provider (list may get long):
             ('wayland', 'hypr'),
+            ('wayland', 'hyprland'),
             ('wayland', 'niri'),
             ('wayland', 'qtile'),
             ('wayland', 'sway'),
