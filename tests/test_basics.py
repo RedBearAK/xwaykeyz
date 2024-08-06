@@ -30,6 +30,20 @@ import pytest_asyncio
 
 _out = None
 
+
+class Context_with_CapsL_OFF:
+    def __init__(self):
+        self.capslock_on = False
+
+ctx = Context_with_CapsL_OFF()
+
+class Context_with_CapsL_ON:
+    def __init__(self):
+        self.capslock_on = True
+
+ctx_ON = Context_with_CapsL_ON()
+
+
 def setup_function(module):
     global _out
     loop = asyncio.new_event_loop()
@@ -262,9 +276,9 @@ async def test_real_inputs_do_not_reexert_during_combo_sequence():
         (RELEASE, Key.LEFT_ALT),
     ]
 
-async def test_simple_to_keystrokes():
+async def test_simple_to_US_keystrokes():
     keymap("default",{
-        K("C-j"): [Key.I, to_US_keystrokes("love"), Key.U]
+        K("C-j"): [Key.I, to_US_keystrokes("love")(ctx), Key.U]
     })
 
     boot_config()
