@@ -26,7 +26,7 @@ dependencies = [
     "inotify_simple ~= 1.3",
     "ordered_set ~= 4.1",
     "python-xlib == 0.31",
-    "pywayland ~= 0.4.17",
+    "pywayland ~= 0.4.18",
 ]
 
 [project.scripts]
