@@ -16,41 +16,43 @@
 
 ## Forked from keyszer
 
-The `xwaykeyz` keymapper was forked from `keyszer`, and supports some Wayland environments (GNOME, KDE Plasma, Cinnamon, Sway, Hyprland). The many references in this README to keyszer will be updated at some point to be more relevant for `xwaykeyz`. 
+The `xwaykeyz` keymapper is a smart key remapper for Linux (and X11) written in Python. It's similar to `xmodmap` but allows far more flexible remappings. Several Wayland environments are supported, but some of the Wayland environments require the assistance of Toshy, a project that uses this keymapper to provide Mac-like keyboard shortcut remapping. See the [Toshy README](https://github.com/RedBearAK/toshy#currently-working-desktop-environments-or-window-managers) for a full list of the supported Wayland environments when `xwaykeyz` is installed via Toshy. The Toshy installer will accept a special `--barebones-config` argument that will leave you with a clean config file without any of the Mac-like remapping, so Toshy can also be used as just a management interface to more easily work with the keymapper while Toshy provides some of the Wayland support components. 
 
-Keyszer is a smart key remapper for Linux (and X11) written in Python. It's similar to `xmodmap` but allows far more flexible remappings.  Keyszer was forked from [xkeysnail](https://github.com/mooz/xkeysnail), which no longer seems actively maintained. 
+This project was forked from [`keyszer`](https://github.com/joshgoebel/keyszer), which currently has no Wayland support, just like `xkeysnail`, and `keyszer` was in turn forked from [`xkeysnail`](https://github.com/mooz/xkeysnail), which no longer seems to be actively maintained. 
+
+Most of the references in this README to `keyszer` will be updated at some point to be more relevant for `xwaykeyz`. 
 
 Feel free to pronounce `xwaykeyz` however you want: Ex-Way-Keys, Sway-Keys, or Zway-Keyzzzzzz... 
 
-## Everything below this header may need to be updated
-
-This section will slowly move down the README as I update each section of the README to reflect that this is a README for `xwaykeyz` which has been forked from `keyszer` and renamed. 
-
-* * * 
-
 ### How does it work?
 
-Keyszer works at quite a low-level.  It grabs input directly from the kernel's [`evdev`](https://www.freedesktop.org/wiki/Software/libevdev/) input devices ( `/dev/input/event*`) and then creates an emulated [`uinput`](https://www.kernel.org/doc/html/v4.12/input/uinput.html) device to inject those inputs back into the kernel.  During this process the input stream is transformed on the fly as necessary to remap keys.
+Xwaykeyz works at quite a low level, close to the hardware.  It grabs input directly from the kernel's [`evdev`](https://www.freedesktop.org/wiki/Software/libevdev/) input devices ( `/dev/input/event*`) and then creates an emulated [`uinput`](https://www.kernel.org/doc/html/v4.12/input/uinput.html) virtual keyboard device to inject those inputs back into the kernel.  During this process the input stream is transformed on the fly as necessary to remap keys. As a side effect of how it works, the keymapper has no idea what your keyboard layout/language is, and this can cause small or large problems for non-US layout users. The only fix for this currently is modifying the `key.py` key definition file, which works fine in many cases where only a few keys need to be swapped. 
+
+Note that the problem with non-US layouts is generally restricted to keys or shortcuts that get remapped by the config, so general typing is not affected, and if your config doesn't happen to remap a key that is different from the typical US layout, this issue may never really affect your usage of the keymapper. It is highly variable how much of a problem this is. 
+
+Some progress has been made attempting to use `xkbcommon` to be able to change the key definitions according to the user's specified layout, but there is a lot of work still not done to make that happen. It's even more difficult to try to get the user's layout changes on-the-fly, for users who need to switch between multiple layouts. 
 
 
 **Upgrading from xkeysnail**
 
-- Some small configuration changes will be needed.
+- Some configuration changes will be needed.
 - A few command line arguments have changed.
 - For xkeysnail 0.4.0 see [UPGRADING_FROM_XKEYSNAIL.md](https://github.com/RedBearAK/xwaykeyz/blob/main/UPGRADE_FROM_XKEYSNAIL.md).
-- For xkeysnail (Kinto variety) see [USING_WITH_KINTO.md](https://github.com/RedBearAK/xwaykeyz/blob/main/USING_WITH_KINTO.md) and [Using with Kinto v1.2-13](https://github.com/RedBearAK/xwaykeyz/issues/36).
+- For xkeysnail (Kinto variety) see [USING_WITH_KINTO.md](https://github.com/RedBearAK/xwaykeyz/blob/main/USING_WITH_KINTO.md) and [Using with Kinto v1.2-13](https://github.com/RedBearAK/keyszer/issues/36).
 
+> [!NOTE]  
+> It is highly recommended to to consider migrating from Kinto to [Toshy](https://github.com/RedBearAK/toshy), since Toshy is intrinsically designed to work with this particular fork of the original `xkeysnail` keymapper used by Kinto, and Toshy components are currently required for supporting some of the Wayland environments. 
 
 #### Key Highlights
 
-- Low-level library usage (`evdev` and `uinput`) allows remapping to work from the console all the way into X11.
+- Low-level library usage (`evdev` and `uinput`) allows remapping to work from the console all the way into X11 (or Wayland).
 - High-level and incredibly flexible remapping mechanisms:
     - _per-application keybindings_ - bindings that change depending on the active X11 application or window
     - _multiple stroke keybindings_ - `Ctrl+x Ctrl+c` could map to `Ctrl+q`
     - _very flexible output_ - `Ctrl-s` could type out `:save`, and then hit enter
     - _stateful key combos_ - build Emacs style combos with shift/mark
     - _multipurpose bindings_ - a regular key can become a modifier when held
-    - _arbitrary functions_ - a key combo can run custom Python function
+    - _arbitrary functions_ - a key combo can run custom Python function (as user)
 
 
 **New Features (since xkeysnail 0.4.0)**
@@ -62,25 +64,58 @@ Keyszer works at quite a low-level.  It grabs input directly from the kernel's [
 - fully supports running as semi-privileged user (using `root` is now deprecated)
 - adds `include` to allow config to pull in other Python files
 - adds `throttle_delays` to allow control of output speed of macros/combos
-- adds `immediately` to nested keymaps
-- adds `Meta`, `Command` and `Cmd` aliases for Super/Meta modifier
+- adds `immediately` to nested keymaps (initial action)
+- adds `Command` and `Cmd` aliases for Super/Meta modifier
+    - `Meta` alias removed due to confusion with old refs to `Alt` key
 - add `C` combo helper (eventually to replace `K`)
 - supports custom modifiers via `add_modifier` (such as `Hyper`)
 - supports `Fn` as a potential modifier (on hardware where it works)
 - adds `bind` helper to support persistent holds across multiple combos
-  - most frequently used for persistent Mac OS style `Cmd-tab` app switcher panels
+  - most frequently used for macOS style `Cmd-Tab` app switching
 - adds `--check` for checking the config file for issues
 - adds `wm_name` context for all conditionals (PR #40)
 - adds `device_name` context for all conditionals (including keymaps)
 - (fix) `xmodmap` cannot be used until some keys are first pressed on the emulated output
-- (fix) ability to avoid unintentional Alt/Super false keypresses in many setups
-- (fix) fixes multi-combo nested keymaps (vs Kinto's xkeysnail)
+- (fix) ability to avoid unintentional Alt/Super false keypresses in many setups (suspend)
+- (fix) fixes multi-combo nested keymaps (vs Kinto's `xkeysnail`)
 - (fix) properly cleans up pressed keys before termination
 - individually configurable timeouts (`multipurpose` and `suspend`)
 - (fix) removed problematic `launch` macro
 - (fix) suspend extra keys during sequential sequences to create less key "noise"
 - (fix) handle X Display errors without crashing or bugging out
 
+**New Features (since forking from `keyszer`)**
+
+- Support for several Wayland environments when installed via [Toshy](https://github.com/RedBearAK/toshy)
+- Without Toshy, `xwaykeyz` natively supports only:
+    - **X11/Xorg sessions** (with any desktop environment/window manager)
+    - **Hyprland** - [via `hyprpy`]
+    - **sway** - [via `i3ipc`]
+- With Toshy, `xwaykeyz` can support:
+    - **X11/Xorg sessions** (with any desktop environment/window manager)
+    - **Cinnamon 6.0 or later** - _[uses Toshy custom shell extension]_
+    - **COSMIC desktop environment** - _[uses D-Bus service]_
+    - **GNOME 3.38 or later** - _[needs 3rd-party shell extension]_
+    - **Hyprland** - _[via `hyprpy` or `wlroots` method]_
+    - **Niri** - _[via `wlroots` method]_
+    - **Plasma 5 (KDE)** - _[uses Toshy KWin script and D-Bus service]_
+    - **Plasma 6 (KDE)** - _[uses Toshy KWin script and D-Bus service]_
+    - **Qtile** - _[via `wlroots` method]_
+    - **sway** - _[via `i3ipc` or `wlroots` method]_
+    - **Wayland compositors with `zwlr_foreign_toplevel_manager_v1` interface**
+        - See [Wiki article](https://github.com/RedBearAK/toshy/wiki/Wlroots-Based-Wayland-Compositors.md) on Toshy repo for usage of this method with unknown compositors that may be compatible
+    - Full list and requirements kept updated in [Toshy README](https://github.com/RedBearAK/toshy#currently-working-desktop-environments-or-window-managers)
+- (fix) Negated high CPU usage while holding a key (by not processing "repeats")
+- (enh) Added API to specify devices from inside the config file (instead of CLI arg)
+
+
+***
+
+## WARNING: Everything below this section may need to be updated!
+
+This section will slowly move down the README as I update each section of the README to reflect that this is a README for `xwaykeyz` which has been forked from `keyszer` and renamed. 
+
+***
 
 
 ---
@@ -88,44 +123,6 @@ Keyszer works at quite a low-level.  It grabs input directly from the kernel's [
 ## Installation
 
 Requires **Python 3**.
-
-
-_Over time we should add individual instructions for various distros here._
-
-<!--
-### Ubuntu
-
-    sudo apt install python3-pip
-    sudo pip3 install keyszer
-
-    # If you plan to compile from source
-    sudo apt install python3-dev
-
-### Fedora
-
-    sudo dnf install python3-pip
-    sudo pip3 install keyszer
-    # Add your user to input group if you don't want to run keyszer
-    # with sudo (log out and log in again to apply group change)
-    sudo usermod -a -G input $USER
-
-    # If you plan to compile from source
-    sudo dnf install python3-devel
-
-### Manjaro/Arch
-
-    # Some distros will need to compile evdev components
-    # and may fail to do so if gcc is not installed.
-    sudo pacman -Syy
-    sudo pacman -S gcc
-
-### Solus
-
-    # Some distros will need to compile evdev components
-    # and may fail to do so if gcc is not installed.
-    sudo eopkg install gcc
-    sudo eopkg install -c system.devel
--->
 
 ### From source
 
@@ -141,16 +138,16 @@ Just download the source and install.
 Using a Python `venv` might be the simplest way to get started:
 
     git clone https://github.com/RedBearAK/xwaykeyz.git
-    cd keyszer
+    cd xwaykeyz
     python -m venv .venv
     source .venv/bin/activate
     pip3 install -e .
-    ./bin/keyszer -c config_file
+    ./bin/xwaykeyz -c config_file
 
 
 ## System Requirements
 
-Keyszer requires read/write access to:
+Xwaykeyz requires read/write access to:
 
 - `/dev/input/event*` - to grab input from your `evdev` input devices
 - `/dev/uinput` - to provide an emulated keyboard to the kernel
@@ -231,20 +228,56 @@ _Don't do this, it's dangerous, and unnecessary._  A semi-privileged user with a
 
 A successful startup should resemble:
 
-    keyszer v0.5.0
-    (--) CONFIG: /home/jgoebel/.config/keyszer/config.py
+    xwaykeyz v1.3.1
+    (--) CONFIG: /home/yourusername/.config/xwaykeyz/config.py
     (+K) Grabbing Apple, Inc Apple Keyboard (/dev/input/event3)
     (--) Ready to process input.
 
+
+**Specifying the environment**
+
+Xwaykeyz internally has multiple "window context providers", to get the application class and window title in X11/Xorg and the various Wayland environments it supports. For the keymapper to know which of the providers to use, there is an environment API function that can be used to inject the necessary information into the keymapper at startup. 
+
+```py
+environ_api(
+    session_type = 'session_type', # This will be 'x11' or 'wayland'
+    wl_desktop_env = 'a_wayland_de', # 'wlroots', 'kde', 'cinnamon', 'gnome', etc. 
+)
+```
+
+For X11/Xorg, the desktop environment argument in this API is unnecessary, and ignored if provided (set to `None` internally), and then the keymapper will use the X11/Xorg window context provider. For Wayland, it is usually essential to specify the desktop environment or window manager name in order to pick the correct window context provider inside the keymapper. There are now several different Wayland providers for specific DEs/WMs, and one (`wlroots`) that may be able to cover a dozen or more less common Wayland compositors (e.g., Niri, Qtile, and similar). 
+
+With the [Toshy](https://github.com/RedBearAK/toshy) project that uses `xwaykeyz`, there is an environment module that the config file uses to grab all the relevant details about the user's environment. This allows Toshy to automatically adapt to moving from one DE or WM to another (on the same Linux system). The user in most cases never has to specify anything about their environment. This Toshy [environment module](https://github.com/RedBearAK/toshy/blob/main/lib/env.py) is frequently updated to identify even more DEs/WMs automatically. 
+
+The reason the environment scraping module from Toshy is not integrated directly into the keymapper itself is primarily because the main `keyszer` dev did not want to deal with its complexity when I introduced it. Which was not entirely irrational or unwise. It was more involved than I had predicted, to make it mostly reliable on multiple Linux distros, and able to correctly detect many different desktop environments. And it is still evolving. 
+
+If the user does not use multiple desktop environments (or window managers), it is perfectly fine to specify the environment statically with the API function call in the config file. 
+
+
 **Limiting Devices**
 
-Limit remapping to specific devices with `--devices`:
+Limit remapping to specific devices using either a command-line option (`--devices`) with one or more device path or device name arguments, or with the `devices_api()` function from inside the config file. The results will be the same. 
+
+With `--devices` CLI option:
 
     keyszer --devices /dev/input/event3 'Topre Corporation HHKB Professional'
 
 The full path or complete device name may be used.  Device name is usually better to avoid USB device numbering jumping around after a reboot, etc...
 
-**Other Options:**
+With the `devices_api()` API function in the config file:
+
+```py
+devices_api(
+    only_devices = [
+        'Some Device Name',
+        'Other Device Name',
+        '/dev/input/event3', # Path or name can be used, but paths can change
+    ]
+)
+```
+
+
+**Other CLI Options:**
 
 - `-c`, `--config` - location of the configuration file
 - `-w`, `--watch` - watch for new keyboard devices to hot-plug
@@ -254,7 +287,7 @@ The full path or complete device name may be used.  Device name is usually bette
 
 ## Configuration
 
-By default we look for the configuration in `~/.config/keyszer/config.py`. You can override this location using the `-c`/`--config` switch.  The configuration file is written in Python.
+By default we look for the configuration in `~/.config/xwaykeyz/config.py`. You can override this location using the `-c`/`--config` switch.  The configuration file is written in Python.
 For an example configuration please see [`example/config.py`](https://github.com/RedBearAK/xwaykeyz/blob/main/example/config.py).
 
 
@@ -262,6 +295,8 @@ The configuration API:
 
 - `timeouts(multipurpose, suspend)`
 - `throttle_delays(key_pre_delay_ms, key_post_delay_ms)`
+- `environ_api(session_type = 'session_type', wl_desktop_env = 'desktop_environment')` - See above
+- `devices_api(only_devices=['List of Device Names','One or more devices'])` - See above
 - `wm_class_match(re_str)`
 - `not_wm_class_match(re_str)`
 - `add_modifier(name, aliases, key/keys)`
@@ -534,14 +569,14 @@ Above I've just pressed "clear" on my numpad and see `code 69 (KEY_NUMLOCK)` in 
 
 #### Finding an Application's `WM_CLASS`  and `WM_NAME` using `xprop`
 
+> [!NOTE]  
+> The [Toshy](https://github.com/RedBearAK/toshy) project has a custom function in its config that will show a dialog with the app class and window title in X11/Xorg and compatible Wayland environments. The `xprop` command will only work in X11/Xorg.  
+
 Use the `xprop` command from a terminal:
 
-    xprop WM_CLASS WM_NAME
+    xprop WM_CLASS _NET_WM_NAME WM_NAME
 
-...then click an application window.  Let's try it with Google Chrome:
-
-    WM_CLASS(STRING) = "google-chrome", "Google-chrome"
-    WM_NAME(UTF8_STRING) = "README - Google Chrome"
+...then click an application window.
 
 Use the second `WM_CLASS` value (in this case `Google-chrome`) when matching `context.wm_class`.
 
