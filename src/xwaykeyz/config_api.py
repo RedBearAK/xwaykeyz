@@ -158,7 +158,8 @@ def environ_api(session_type='x11', wl_desktop_env=None):
     if isinstance(wl_desktop_env, str):
         wl_desktop_env = wl_desktop_env.casefold()
 
-    # Get the currently supported environments
+    # Get the currently supported environments currently being 
+    # advertized by provider classes in the window context module.
     supported_environments = get_all_supported_environments()
 
     # Construct the environment tuple based on the provided values
