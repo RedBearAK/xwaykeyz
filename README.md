@@ -94,7 +94,7 @@ Some progress has been made attempting to use `xkbcommon` to be able to change t
 - With Toshy, `xwaykeyz` can support:
     - **X11/Xorg sessions** (with any desktop environment/window manager)
     - **Cinnamon 6.0 or later** - _[uses Toshy custom shell extension]_
-    - **COSMIC desktop environment** - _[uses D-Bus service]_
+    - **COSMIC desktop environment** - _[uses Toshy D-Bus service]_
     - **GNOME 3.38 or later** - _[needs 3rd-party shell extension]_
     - **Hyprland** - _[via `hyprpy` or `wlroots` method]_
     - **Niri** - _[via `wlroots` method]_
