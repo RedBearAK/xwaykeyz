@@ -11,6 +11,7 @@ import shutil
 import socket
 import subprocess
 
+from random import randint
 from subprocess import PIPE
 from i3ipc import Con
 from typing import Dict, Optional
@@ -573,26 +574,28 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
         # import dbus
         from dbus.exceptions import DBusException
 
-        self.DBusException      = DBusException
-        session_bus             = dbus.SessionBus()
+        self.DBusException          = DBusException
+        session_bus                 = dbus.SessionBus()
 
-        path_focused_wdw        = "/org/gnome/shell/extensions/FocusedWindow"
-        obj_focused_wdw         = "org.gnome.shell.extensions.FocusedWindow"
-        proxy_focused_wdw       = session_bus.get_object("org.gnome.Shell", path_focused_wdw)
-        self.iface_focused_wdw  = dbus.Interface(proxy_focused_wdw, obj_focused_wdw)
+        path_focused_wdw            = "/org/gnome/shell/extensions/FocusedWindow"
+        obj_focused_wdw             = "org.gnome.shell.extensions.FocusedWindow"
+        proxy_focused_wdw           = session_bus.get_object("org.gnome.Shell", path_focused_wdw)
+        self.iface_focused_wdw      = dbus.Interface(proxy_focused_wdw, obj_focused_wdw)
 
-        path_windowsext         = "/org/gnome/Shell/Extensions/WindowsExt"
-        obj_windowsext          = "org.gnome.Shell.Extensions.WindowsExt"
-        proxy_windowsext        = session_bus.get_object("org.gnome.Shell", path_windowsext)
-        self.iface_windowsext   = dbus.Interface(proxy_windowsext,obj_windowsext)
+        path_windowsext             = "/org/gnome/Shell/Extensions/WindowsExt"
+        obj_windowsext              = "org.gnome.Shell.Extensions.WindowsExt"
+        proxy_windowsext            = session_bus.get_object("org.gnome.Shell", path_windowsext)
+        self.iface_windowsext       = dbus.Interface(proxy_windowsext,obj_windowsext)
 
-        path_xremap             = "/com/k0kubun/Xremap"
-        obj_xremap              = "com.k0kubun.Xremap"
-        proxy_xremap            = session_bus.get_object("org.gnome.Shell", path_xremap)
-        self.iface_xremap       = dbus.Interface(proxy_xremap, obj_xremap)
+        path_xremap                 = "/com/k0kubun/Xremap"
+        obj_xremap                  = "com.k0kubun.Xremap"
+        proxy_xremap                = session_bus.get_object("org.gnome.Shell", path_xremap)
+        self.iface_xremap           = dbus.Interface(proxy_xremap, obj_xremap)
 
         self.last_good_ext_uuid     = None
         self.cycle_count            = 0
+        self.error_cnt              = 0
+        self.max_err_cnt            = 15
 
         self.ext_uuid_focused_wdw   = 'focused-window-dbus@flexagoon.com'
         self.ext_uuid_windowsext    = 'window-calls-extended@hseliger.eu'
@@ -639,7 +642,7 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
                 context = self.GNOME_SHELL_EXTENSIONS[extension_uuid]()
             except self.DBusException as dbus_err:
                 dbus_err = str(dbus_err).replace("Object does not exist", "\n\t Object does not exist")
-                error(f"D-Bus error querying GNOME Shell extension '{extension_uuid}':\n\t{dbus_err}")
+                debug(f"Error querying GNOME Shell extension '{extension_uuid}':\n\t{dbus_err}")
                 # Continue to the next extension
                 continue
             else:
@@ -649,17 +652,27 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
                 return context
 
         # If we reach here, it means all extensions have failed
+        if self.error_cnt == 0:
+            self.error_all_exts_failed()
+        elif self.error_cnt >= self.max_err_cnt:
+            self.error_cnt = 1
+            self.max_err_cnt = randint(12, 17)
+            self.error_all_exts_failed()
+        else:
+            self.error_cnt += 1
+
+    def error_all_exts_failed(self):
         print()
         error(  f'############################################################################')
         error(  f'SHELL_EXT: No compatible GNOME Shell extension responding via D-Bus.'
                 f'\n\t(Ignore this error if screen was locked/inactive at the time.)'
                 f'\n\tThese shell extensions are compatible with keyszer:'
-                f'\n\t    {self.ext_uuid_xremap} (supports pre-GNOME 41.x):'
-                f'\n\t\t(https://extensions.gnome.org/extension/5060/xremap/)'
-                f'\n\t    {self.ext_uuid_windowsext}:'
-                f'\n\t\t(https://extensions.gnome.org/extension/4974/window-calls-extended/)'
-                f'\n\t    {self.ext_uuid_focused_wdw}:'
-                f'\n\t\t(https://extensions.gnome.org/extension/5592/focused-window-d-bus/)'
+                f'\n\t  {self.ext_uuid_xremap} (supports pre-GNOME 41.x):'
+                f'\n\t    (https://extensions.gnome.org/extension/5060/xremap/)'
+                f'\n\t  {self.ext_uuid_windowsext}:'
+                f'\n\t    (https://extensions.gnome.org/extension/4974/window-calls-extended/)'
+                f'\n\t  {self.ext_uuid_focused_wdw}:'
+                f'\n\t    (https://extensions.gnome.org/extension/5592/focused-window-d-bus/)'
         )
         error(f'Install "Extension Manager" from Flathub to manage GNOME Shell extensions')
         error(f'############################################################################')
