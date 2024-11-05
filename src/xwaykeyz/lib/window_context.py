@@ -594,8 +594,8 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
 
         self.last_good_ext_uuid     = None
         self.cycle_count            = 0
-        self.dbus_err_cnt              = 0
-        self.max_dbus_err_cnt            = 15
+        self.dbus_err_cnt           = 0
+        self.max_dbus_err_cnt       = 15
 
         self.ext_uuid_focused_wdw   = 'focused-window-dbus@flexagoon.com'
         self.ext_uuid_windowsext    = 'window-calls-extended@hseliger.eu'
@@ -670,7 +670,8 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
 
     def show_error_all_exts_failed(self):
         """Print out informative error about all shell extensions failing to respond."""
-        error(  f'\n############################################################################')
+        print()
+        error(  f'############################################################################')
         error(  f'SHELL_EXT: No compatible GNOME Shell extension responding via D-Bus.'
                 f'\n\t(Ignore this error if screen was locked/inactive at the time.)'
                 f'\n\tThese shell extensions are compatible with keyszer:'
@@ -684,7 +685,7 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
         error(  f'############################################################################\n')
 
     def get_wl_gnome_dbus_focused_wdw_context(self):
-        """utility function to actually talk to the 'Focused Window D-Bus' extension"""
+        """utility function to query to the 'Focused Window D-Bus' extension"""
         wm_class            = ''
         wm_name             = ''
         
@@ -705,7 +706,7 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
         return {"wm_class": wm_class, "wm_name": wm_name, "x_error": False}
 
     def get_wl_gnome_dbus_windowsext_context(self):
-        """utility function to actually talk to the 'Window Calls Extended' extension"""
+        """utility function to query to the 'Window Calls Extended' extension"""
         wm_class            = ''
         wm_name             = ''
 
@@ -715,7 +716,7 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
         return {"wm_class": wm_class, "wm_name": wm_name, "x_error": False}
 
     def get_wl_gnome_dbus_xremap_context(self):
-        """utility function to actually talk to the 'Xremap' extension"""
+        """utility function to query to the 'Xremap' extension"""
         active_window_dbus  = ''
         active_window_dct   = ''
         wm_class            = ''
