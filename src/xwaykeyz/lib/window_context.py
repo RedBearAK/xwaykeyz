@@ -594,8 +594,8 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
 
         self.last_good_ext_uuid     = None
         self.cycle_count            = 0
-        self.error_cnt              = 0
-        self.max_err_cnt            = 15
+        self.dbus_err_cnt              = 0
+        self.max_dbus_err_cnt            = 15
 
         self.ext_uuid_focused_wdw   = 'focused-window-dbus@flexagoon.com'
         self.ext_uuid_windowsext    = 'window-calls-extended@hseliger.eu'
@@ -648,22 +648,29 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
             else:
                 # No exceptions were thrown, so this extension is now the preferred one
                 self.last_good_ext_uuid = extension_uuid
+                self.dbus_err_cnt = 0
                 debug(f"SHELL_EXT: Using UUID '{self.last_good_ext_uuid}' for window context", ctx='CX')
                 return context
 
         # If we reach here, it means all extensions have failed
-        if self.error_cnt == 0:
-            self.error_all_exts_failed()
-        elif self.error_cnt >= self.max_err_cnt:
-            self.error_cnt = 1
-            self.max_err_cnt = randint(12, 17)
-            self.error_all_exts_failed()
-        else:
-            self.error_cnt += 1
+        self.last_good_ext_uuid = None
 
-    def error_all_exts_failed(self):
-        print()
-        error(  f'############################################################################')
+        if self.dbus_err_cnt >= self.max_dbus_err_cnt:
+            self.dbus_err_cnt = 0
+            self.max_dbus_err_cnt = randint(12, 17)
+            self.show_error_all_exts_failed()
+        elif self.dbus_err_cnt == 0:
+            self.dbus_err_cnt += 1
+            self.show_error_all_exts_failed()
+        else:
+            self.dbus_err_cnt += 1
+            # Do not print error to avoid spamming the journal.
+
+        return NO_CONTEXT_WAS_ERROR
+
+    def show_error_all_exts_failed(self):
+        """Print out informative error about all shell extensions failing to respond."""
+        error(  f'\n############################################################################')
         error(  f'SHELL_EXT: No compatible GNOME Shell extension responding via D-Bus.'
                 f'\n\t(Ignore this error if screen was locked/inactive at the time.)'
                 f'\n\tThese shell extensions are compatible with keyszer:'
@@ -672,14 +679,9 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
                 f'\n\t  {self.ext_uuid_windowsext}:'
                 f'\n\t    (https://extensions.gnome.org/extension/4974/window-calls-extended/)'
                 f'\n\t  {self.ext_uuid_focused_wdw}:'
-                f'\n\t    (https://extensions.gnome.org/extension/5592/focused-window-d-bus/)'
-        )
-        error(f'Install "Extension Manager" from Flathub to manage GNOME Shell extensions')
-        error(f'############################################################################')
-        print()
-
-        self.last_good_ext_uuid = None
-        return NO_CONTEXT_WAS_ERROR
+                f'\n\t    (https://extensions.gnome.org/extension/5592/focused-window-d-bus/)')
+        error(  f'Install "Extension Manager" from Flathub to manage GNOME Shell extensions')
+        error(  f'############################################################################\n')
 
     def get_wl_gnome_dbus_focused_wdw_context(self):
         """utility function to actually talk to the 'Focused Window D-Bus' extension"""
