@@ -685,7 +685,7 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
         error(  f'############################################################################\n')
 
     def get_wl_gnome_dbus_focused_wdw_context(self):
-        """utility function to query to the 'Focused Window D-Bus' extension"""
+        """utility function to query the 'Focused Window D-Bus' extension"""
         wm_class            = ''
         wm_name             = ''
         
@@ -706,7 +706,7 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
         return {"wm_class": wm_class, "wm_name": wm_name, "x_error": False}
 
     def get_wl_gnome_dbus_windowsext_context(self):
-        """utility function to query to the 'Window Calls Extended' extension"""
+        """utility function to query the 'Window Calls Extended' extension"""
         wm_class            = ''
         wm_name             = ''
 
@@ -716,7 +716,7 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
         return {"wm_class": wm_class, "wm_name": wm_name, "x_error": False}
 
     def get_wl_gnome_dbus_xremap_context(self):
-        """utility function to query to the 'Xremap' extension"""
+        """utility function to query the 'Xremap' extension"""
         active_window_dbus  = ''
         active_window_dct   = ''
         wm_class            = ''
