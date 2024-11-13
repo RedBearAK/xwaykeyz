@@ -129,7 +129,7 @@ Requires **Python 3**.
 Just download the source and install.
 
     git clone https://github.com/RedBearAK/xwaykeyz.git
-    cd keyszer
+    cd xwaykeyz
     pip3 install --user --upgrade .
 
 
