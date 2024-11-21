@@ -139,9 +139,50 @@ class Output:
                 if pressed_key in modifier.get_keys():
                     # already held down, we don't need to press or lift
                     mod_keys_we_need_to_lift.remove(pressed_key)
-                    mods_we_need_to_press.remove(modifier)
 
-        for key in mod_keys_we_need_to_lift:
+                    # Fix to prevent KeyError exception when both left/right of same mod key used in
+                    # the input combo, and generic form of that mod is/was in mods_we_need_to_press:
+                    if modifier in mods_we_need_to_press:
+                        mods_we_need_to_press.remove(modifier)
+                    else:
+                        debug(f"Skipping redundant removal of modifier: {modifier}")
+                    # TODO: The above "fix" needs to be deeply examined for possible side effects. 
+
+
+        #############################################################################################
+        #############################################################################################
+        # # DEBUGGING VERSION OF THE ABOVE CODE BLOCK (LEFT AND RIGHT VARIANTS OF MODIFIER
+        # # USED TOGETHER IN INPUT COMOBO CAUSE EXCEPTION IF GENERIC MODIFIER IS IN OUTPUT COMBO)
+        # print()
+        # mod_keys_we_need_to_lift = self._pressed_modifier_keys.copy()
+        # debug(f"######  {mod_keys_we_need_to_lift           = }")
+        # mods_we_need_to_press = combo.modifiers.copy()
+        # debug(f"######  {mods_we_need_to_press              = }")
+        # print()
+        # debug(f"########  {self._pressed_modifier_keys      = }")
+        # for pressed_key in self._pressed_modifier_keys:
+        #     debug(f"########  outer for loop: {pressed_key      = }")
+        #     debug(f"########  outer for loop: {combo.modifiers  = }")
+        #     print()
+        #     for modifier in combo.modifiers:
+        #         debug(f"##########  inner for loop: {modifier               = }")
+        #         debug(f"##########  inner for loop: {modifier.get_keys()    = }")
+        #         print()
+        #         if pressed_key in modifier.get_keys():
+        #             debug(f"############  removing key: {pressed_key                = }")
+        #             # already held down, we don't need to press or lift
+        #             debug(f"############  before remove: {mod_keys_we_need_to_lift  = }")
+        #             debug(f"############  before remove: {mods_we_need_to_press     = }")
+        #             mod_keys_we_need_to_lift.remove(pressed_key)
+        #             mods_we_need_to_press.remove(modifier)
+        #             debug(f"############  after remove: {mod_keys_we_need_to_lift   = }")
+        #             debug(f"############  after remove: {mods_we_need_to_press      = }")
+        #         print()
+        #############################################################################################
+        #############################################################################################
+
+
+        for key in reversed(list(mod_keys_we_need_to_lift)):
             sleep_ms(_THROTTLES['key_pre_delay_ms'])
             self.send_key_action(key, RELEASE)
             sleep_ms(_THROTTLES['key_post_delay_ms'])
