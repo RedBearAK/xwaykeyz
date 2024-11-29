@@ -90,6 +90,7 @@ Some progress has been made attempting to use `xkbcommon` to be able to change t
 - Without Toshy, `xwaykeyz` natively supports only:
     - **X11/Xorg sessions** (with any desktop environment/window manager)
     - **Hyprland** - [via `hyprpy`]
+    - **Pantheon** - [via D-Bus queries to Gala WM]
     - **sway** - [via `i3ipc`]
 - With Toshy, `xwaykeyz` can support:
     - **X11/Xorg sessions** (with any desktop environment/window manager)
