@@ -170,9 +170,9 @@ class Wl_Pantheon_WindowContext(WindowContextProviderInterface):
                     self.wm_class = properties.get('wm-class', '')
                     self.app_id = properties.get('app-id', '').rstrip('.desktop')
                     self.title = properties.get('title', '')
-                    debug(f"####  Pantheon wm-class:    '{self.wm_class}'")
-                    debug(f"####  Pantheon app-id:      '{self.app_id}'")
-                    debug(f"####  Pantheon title:       '{self.wm_class}'")
+                    # debug(f"####  Pantheon wm-class:    '{self.wm_class}'")
+                    # debug(f"####  Pantheon app-id:      '{self.app_id}'")
+                    # debug(f"####  Pantheon title:       '{self.title}'")
                     break
             else:
                 return NO_CONTEXT_WAS_ERROR
