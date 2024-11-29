@@ -111,6 +111,91 @@ class Example_WindowContext(WindowContextProviderInterface):
         pass
 
 
+class Wl_Pantheon_WindowContext(WindowContextProviderInterface):
+    """
+    Window context provider object for Wayland+Pantheon environments.
+    This class interacts with Pantheon's Gala D-Bus interface to obtain
+    information about the currently focused window.
+    """
+
+    def __init__(self):
+        from dbus.exceptions import DBusException
+
+        self.DBusException      = DBusException
+        self.session_bus        = dbus.SessionBus()
+
+        self.wm_class           = 'NO_DATA_YET'
+        self.app_id             = 'NO_DATA_YET'
+        self.title              = 'NO_DATA_YET'
+
+        self.gala_dbus_obj      = 'org.pantheon.gala'
+        self.gala_dbus_path     = '/org/pantheon/gala/DesktopInterface'
+        self.dbus_svc_name      = 'Pantheon Gala D-Bus service'
+
+        while True:
+            try:
+                self.proxy_gala_svc = self.session_bus.get_object(
+                    self.gala_dbus_obj, self.gala_dbus_path
+                )
+                self.iface_gala_svc = dbus.Interface(
+                    self.proxy_gala_svc, 'org.pantheon.gala.DesktopIntegration'
+                )
+                break
+            except self.DBusException as dbus_error:
+                error(f'Error getting {self.dbus_svc_name} interface.\n\t{dbus_error}')
+            time.sleep(3)
+
+    @classmethod
+    def get_supported_environments(cls):
+        """
+        This class supports the Pantheon environment on Wayland, using
+        the Pantheon Gala D-Bus interface.
+        """
+        return [
+            ('wayland', 'pantheon'),
+        ]
+
+    def get_window_context(self):
+        """
+        Return window context to KeyContext
+        Queries the Gala D-Bus service for the current window's app class and title.
+        """
+        try:
+            # Use GetWindows method to find the focused window
+            windows = self.iface_gala_svc.GetWindows()
+            for window in windows:
+                window_id, properties = window
+                if properties.get('has-focus', False):
+                    # This block only executes if the get() succeeded and did not return "False"
+                    self.wm_class = properties.get('wm-class', '')
+                    self.app_id = properties.get('app-id', '').rstrip('.desktop')
+                    self.title = properties.get('title', '')
+                    # debug(f"####  Pantheon wm-class:    '{self.wm_class}'")
+                    # debug(f"####  Pantheon app-id:      '{self.app_id}'")
+                    # debug(f"####  Pantheon title:       '{self.title}'")
+                    break
+            else:
+                return NO_CONTEXT_WAS_ERROR
+
+        except self.DBusException as dbus_error:
+            error(f'{self.dbus_svc_name} interface stale?:\n\t{dbus_error}')
+            error(f'Trying to refresh {self.dbus_svc_name} interface...')
+            try:
+                self.proxy_gala_svc = self.session_bus.get_object(
+                    self.gala_dbus_obj, self.gala_dbus_path
+                )
+                self.iface_gala_svc = dbus.Interface(
+                    self.proxy_gala_svc, 'org.pantheon.gala.DesktopIntegration'
+                )
+            except self.DBusException as dbus_error:
+                error(f'Error refreshing {self.dbus_svc_name} interface.\n\t{dbus_error}')
+                return NO_CONTEXT_WAS_ERROR
+
+        debug(f"PANTHEON_CTX: Using D-Bus interface '{self.gala_dbus_obj}' for window context", ctx='CX')
+
+        return {"wm_class": self.wm_class or self.app_id, "wm_name": self.title, "x_error": False}
+
+
 class Wl_COSMIC_WindowContext(WindowContextProviderInterface):
     """
     Window context provider object for Wayland+COSMIC environments.
