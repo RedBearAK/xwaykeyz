@@ -175,7 +175,17 @@ class Wl_Pantheon_WindowContext(WindowContextProviderInterface):
                     # debug(f"####  Pantheon title:       '{self.title}'")
                     break
             else:
-                return NO_CONTEXT_WAS_ERROR
+                # return NO_CONTEXT_WAS_ERROR       # Prevents keymapping on bare desktop/workspace.
+
+                # Pantheon Wayland session appears to suffer from a defect that affects some other
+                # desktop environments. When no window is open on a workspace, the desktop itself
+                # will not be considered a focused window, so nothing will be returned from the `for`
+                # loop, which means some dummy info must be returned instead of NO_CONTEXT_WAS_ERROR. 
+                return {
+                    "wm_class": 'ERR_No_Focused_Window', 
+                    "wm_name": 'ERR_No_Focused_Window', 
+                    "x_error": False
+                }
 
         except self.DBusException as dbus_error:
             error(f'{self.dbus_svc_name} interface stale?:\n\t{dbus_error}')
