@@ -290,26 +290,22 @@ def apply_modmap(keystate: Keystate, context: KeyContext):
 
     # Check if the active modmap provides a valid mapping
     if inkey in active_modmap:
-        output_key_or_list = active_modmap[inkey]
+        output_key_or_tup = active_modmap[inkey]
 
-        # Handle the case where the output is a list of modifiers
-        if isinstance(output_key_or_list, list):
-            if all(Modifier.is_key_modifier(k) for k in output_key_or_list):
-                debug(f"MODMAP: {inkey} => {output_key_or_list} (modifiers) [{active_modmap.name}]")
-                keystate.key = output_key_or_list
+        if isinstance(output_key_or_tup, tuple):  # If it's a tuple of modifiers
+            if all(Modifier.is_key_modifier(k) for k in output_key_or_tup):
+                debug(f"MODMAP: {inkey} => {output_key_or_tup} (modifiers) [{active_modmap.name}]")
+                keystate.key = output_key_or_tup  # Store the tuple in keystate.key
             else:
                 raise ValueError(
-                    f"Invalid modmap output for {inkey}: {output_key_or_list}. "
-                    "Only modifier keys are allowed in a list."
+                    f"Invalid modmap output for {inkey}: {output_key_or_tup}. "
+                    "Only modifier keys are allowed in a tuple."
                 )
-
-        # Handle the case where the output is a single key
-        elif isinstance(output_key_or_list, Key):
-            debug(f"MODMAP: {inkey} => {output_key_or_list} [{active_modmap.name}]")
-            keystate.key = output_key_or_list
+        elif isinstance(output_key_or_tup, Key):  # If it's a single key
+            debug(f"MODMAP: {inkey} => {output_key_or_tup} [{active_modmap.name}]")
+            keystate.key = output_key_or_tup
         else:
-            raise ValueError(f"Invalid modmap output for {inkey}: {output_key_or_list}."
-                                "\nMust be a Key or list of modifiers.")
+            raise ValueError(f"Invalid modmap output for {inkey}: {output_key_or_tup}. Must be a Key or tuple of modifiers.")
 
 
 def apply_multi_modmap(keystate: Keystate, context: KeyContext):
@@ -583,10 +579,10 @@ def transform_key(key: Key, action, ctx: KeyContext):
 
     # If the key value is a list of modifiers, send each modifier action
     # Allows modmap to produce modifier key sequence from single input key/modifier
-    if isinstance(key, list) and all(Modifier.is_key_modifier(k) for k in key):
+    if isinstance(key, tuple) and all(Modifier.is_key_modifier(k) for k in key):
         for mod_key in key:
             _output.send_key_action(mod_key, action)
-        return
+        return  # Skip further processing since there's no main key
 
     combo = Combo(get_pressed_mods(), key)
 
