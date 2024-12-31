@@ -251,24 +251,65 @@ def log_combo_context(combo, ctx: KeyContext, keymap: Keymap, _active_keymaps: L
 _last_key = None
 
 
+# # translate keycode (like xmodmap)
+# def apply_modmap(keystate: Keystate, context: KeyContext):
+#     inkey = keystate.inkey
+#     keystate.key = inkey
+#     # first modmap is always the default, unconditional
+#     active_modmap = _MODMAPS[0]
+#     # debug("active", active_modmap)
+#     conditional_modmaps: List[Modmap] = _MODMAPS[1:]
+#     # debug("conditionals", conditional_modmaps)
+#     if conditional_modmaps:
+#         for modmap in conditional_modmaps:
+#             if inkey in modmap:
+#                 if modmap.conditional(context):
+#                     active_modmap = modmap
+#                     break
+#     if active_modmap and inkey in active_modmap:
+#         debug(f"MODMAP: {inkey} => {active_modmap[inkey]} [{active_modmap.name}]")
+#         keystate.key = active_modmap[inkey]
+
+
 # translate keycode (like xmodmap)
+# this revision also supports remapping a single key to modifier list)
 def apply_modmap(keystate: Keystate, context: KeyContext):
     inkey = keystate.inkey
-    keystate.key = inkey
-    # first modmap is always the default, unconditional
+    keystate.key = inkey  # Default to the input key
+    # Use the first (generic) modmap as the default active modmap
     active_modmap = _MODMAPS[0]
-    # debug("active", active_modmap)
-    conditional_modmaps: List[Modmap] = _MODMAPS[1:]
-    # debug("conditionals", conditional_modmaps)
-    if conditional_modmaps:
-        for modmap in conditional_modmaps:
-            if inkey in modmap:
-                if modmap.conditional(context):
-                    active_modmap = modmap
-                    break
-    if active_modmap and inkey in active_modmap:
-        debug(f"MODMAP: {inkey} => {active_modmap[inkey]} [{active_modmap.name}]")
-        keystate.key = active_modmap[inkey]
+    conditional_modmaps = _MODMAPS[1:]
+
+    # Check conditional modmaps for a match
+    for modmap in conditional_modmaps:
+        if inkey in modmap:
+            if modmap.conditional(context):
+                active_modmap = modmap
+                # break out after activating the first keymap encountered that has the key in it
+                break
+
+    # Check if the active modmap provides a valid mapping
+    if inkey in active_modmap:
+        output_key_or_list = active_modmap[inkey]
+
+        # Handle the case where the output is a list of modifiers
+        if isinstance(output_key_or_list, list):
+            if all(Modifier.is_key_modifier(k) for k in output_key_or_list):
+                debug(f"MODMAP: {inkey} => {output_key_or_list} (modifiers) [{active_modmap.name}]")
+                keystate.key = output_key_or_list
+            else:
+                raise ValueError(
+                    f"Invalid modmap output for {inkey}: {output_key_or_list}. "
+                    "Only modifier keys are allowed in a list."
+                )
+
+        # Handle the case where the output is a single key
+        elif isinstance(output_key_or_list, Key):
+            debug(f"MODMAP: {inkey} => {output_key_or_list} [{active_modmap.name}]")
+            keystate.key = output_key_or_list
+        else:
+            raise ValueError(f"Invalid modmap output for {inkey}: {output_key_or_list}."
+                                "\nMust be a Key or list of modifiers.")
 
 
 def apply_multi_modmap(keystate: Keystate, context: KeyContext):
@@ -429,7 +470,7 @@ def on_mod_key(keystate: Keystate, context):
             keystate.exerted_on_output = False
 
 
-def on_key(keystate: Keystate, context):
+def on_key(keystate: Keystate, context: KeyContext):
     global _last_key
 
     key, action = (keystate.key, keystate.action)
@@ -472,7 +513,63 @@ def on_key(keystate: Keystate, context):
         _last_key = key
 
 
-def transform_key(key, action, ctx: KeyContext):
+# def transform_key(key: Key, action, ctx: KeyContext):
+#     global _active_keymaps
+#     is_top_level = False
+
+#     # if we do not have window context information we essentially short-circuit
+#     # the keymapper, acting in essentially a pass thru mode sending what is
+#     # typed straight thru from input to output
+#     if ctx.x_error:
+#         resume_keys()
+#         _output.send_key_action(key, action)
+#         return
+
+#     combo = Combo(get_pressed_mods(), key)
+
+#     if _active_keymaps is escape_next_key:
+#         debug(f"Escape key: {combo} => {key}")
+#         _output.send_key_action(key, action)
+#         _active_keymaps = None
+#         return
+
+#     # Decide keymap(s)
+#     if _active_keymaps is None:
+#         is_top_level = True
+#         _active_keymaps = [km for km in _KEYMAPS if km.matches(ctx)]
+
+#     for keymap in _active_keymaps:
+#         if combo not in keymap:
+#             continue
+
+#         if logger.VERBOSE:
+#             log_combo_context(combo, ctx, keymap, _active_keymaps)
+
+#         held = get_pressed_states()
+#         for ks in held:
+#             # if we are triggering a momentary on the output we can mark ourselves
+#             # spent, but if the key is already asserted on the output then we cannot
+#             # count it as spent and must hold it so that it's release later will
+#             # trigger the release on the output
+#             if not _output.is_mod_pressed(ks.key):
+#                 ks.spent = True
+#         debug("spent modifiers", [_.key for _ in held if _.spent])
+#         reset_mode = handle_commands(keymap[combo], key, action, ctx, combo)
+#         if reset_mode:
+#             _active_keymaps = None
+#         return
+
+#     # Not found in all KEYMAPS
+#     if is_top_level:
+#         # need to output any keys we've suspended
+#         resume_keys()
+#         # If it's top-level, pass through keys
+#         _output.send_key_action(key, action)
+
+#     _active_keymaps = None
+
+
+def transform_key(key: Key, action, ctx: KeyContext):
     global _active_keymaps
     is_top_level = False
 
@@ -482,6 +579,13 @@ def transform_key(key, action, ctx: KeyContext):
     if ctx.x_error:
         resume_keys()
         _output.send_key_action(key, action)
+        return
+
+    # If the key value is a list of modifiers, send each modifier action
+    # Allows modmap to produce modifier key sequence from single input key/modifier
+    if isinstance(key, list) and all(Modifier.is_key_modifier(k) for k in key):
+        for mod_key in key:
+            _output.send_key_action(mod_key, action)
         return
 
     combo = Combo(get_pressed_mods(), key)
