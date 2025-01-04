@@ -3,7 +3,7 @@ import time
 import inspect
 
 from evdev import ecodes, InputEvent
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from .config_api import escape_next_key, get_configuration, ignore_key, _ENVIRON, _REPEATING_KEYS
 from .lib import logger
@@ -39,6 +39,7 @@ def boot_config():
 _active_keymaps = None
 _output = Output()
 _key_states: Dict[Key, Keystate] = {}
+_multimod_states: Dict[Key, Tuple[Key]] = {}
 _sticky = {}
 
 
@@ -290,22 +291,23 @@ def apply_modmap(keystate: Keystate, context: KeyContext):
 
     # Check if the active modmap provides a valid mapping
     if inkey in active_modmap:
-        output_key_or_tup = active_modmap[inkey]
+        output_keys = active_modmap[inkey]
 
-        if isinstance(output_key_or_tup, tuple):  # If it's a tuple of modifiers
-            if all(Modifier.is_key_modifier(k) for k in output_key_or_tup):
-                debug(f"MODMAP: {inkey} => {output_key_or_tup} (modifiers) [{active_modmap.name}]")
-                keystate.key = output_key_or_tup  # Store the tuple in keystate.key
+        if isinstance(output_keys, tuple):  # If it's a tuple of modifiers
+            if all(Modifier.is_key_modifier(k) for k in output_keys):
+                debug(f"MODMAP: {inkey} => {output_keys} (modifiers) [{active_modmap.name}]")
+                _multimod_states[inkey] = output_keys  # Track the remapped modifiers
+                keystate.key = output_keys  # Store the tuple in keystate.key
             else:
                 raise ValueError(
-                    f"Invalid modmap output for {inkey}: {output_key_or_tup}. "
+                    f"Invalid modmap output for {inkey}: {output_keys}. "
                     "Only modifier keys are allowed in a tuple."
                 )
-        elif isinstance(output_key_or_tup, Key):  # If it's a single key
-            debug(f"MODMAP: {inkey} => {output_key_or_tup} [{active_modmap.name}]")
-            keystate.key = output_key_or_tup
+        elif isinstance(output_keys, Key):  # If it's a single key
+            debug(f"MODMAP: {inkey} => {output_keys} [{active_modmap.name}]")
+            keystate.key = output_keys
         else:
-            raise ValueError(f"Invalid modmap output for {inkey}: {output_key_or_tup}. Must be a Key or tuple of modifiers.")
+            raise ValueError(f"Invalid modmap output for {inkey}: {output_keys}. Must be a Key or tuple of modifiers.")
 
 
 def apply_multi_modmap(keystate: Keystate, context: KeyContext):
@@ -402,7 +404,7 @@ def on_event(event: InputEvent, device):
     action                      = Action(event.value)
     key                         = Key(event.code)
 
-    ks = find_keystate_or_new(
+    keystate = find_keystate_or_new(
         inkey=key,
         action=action
     )
@@ -414,16 +416,35 @@ def on_event(event: InputEvent, device):
     # then we turn off all mappings until it's resolved and act
     # more or less as a pass thru for all input => output
     if context.x_error:
-        ks.key = ks.key or ks.inkey
+        keystate.key = keystate.key or keystate.inkey
 
     # we only do modmap on the PRESS pass, keys may not
     # redefine themselves midstream while repeating or
     # as they are lifted
-    if not ks.key:
-        apply_modmap(ks, context)
-        apply_multi_modmap(ks, context)
+    if not keystate.key:
+        apply_modmap(keystate, context)
+        apply_multi_modmap(keystate, context)
 
-    on_key(ks, context)
+
+
+
+    if isinstance(keystate.key, tuple):  # Check if the remapped key is a tuple
+        debug(f"on_event: Processing tuple of keys {keystate.key}")
+        for mod_key in keystate.key:
+            # Create a new Keystate for each remapped key
+            mod_keystate = Keystate(
+                inkey=mod_key,            # Individual modifier key
+                action=keystate.action,   # Same action (PRESS/RELEASE)
+                time=keystate.time,       # Preserve original timestamp
+                prior=None                # No prior state needed for these keys
+            )
+            on_key(mod_keystate)  # Pass to on_key for processing
+        return  # Stop further processing for the original key
+
+
+
+
+    on_key(keystate, context)
 
 
 def on_mod_key(keystate: Keystate, context):
@@ -464,6 +485,49 @@ def on_mod_key(keystate: Keystate, context):
         _output.send_key_action(key, action)
         if action.is_released():
             keystate.exerted_on_output = False
+
+
+# def on_key(keystate: Keystate, context: KeyContext):
+#     global _last_key
+
+#     key, action = (keystate.key, keystate.action)
+#     debug("on_key", key, action)
+
+#     if Modifier.is_key_modifier(key):
+#         on_mod_key(keystate, context)
+
+#     elif keystate.is_multi and action.just_pressed():
+#         # debug("multi pressed", key)
+#         keystate.suspended = True
+#         update_pressed_states(keystate)
+#         suspend_keys(_TIMEOUTS["multipurpose"])
+
+#     elif keystate.is_multi and action.is_repeat and keystate.suspended:
+#         pass
+#         # do nothing
+
+#     # regular key releases, not modifiers (though possibly a multi-mod)
+#     elif action.is_released():
+#         if _output.is_pressed(key):
+#             _output.send_key_action(key, action)
+#         if keystate.is_multi:
+#             debug("multi released early", key)
+#             # we've triggered ourself with our own key (lifting)
+#             # before the timeout, so we are a normal momentary
+#             # input
+#             if _last_key == key:
+#                 keystate.resolve_as_momentary()
+#             else:
+#                 keystate.resolve_as_modifier()
+#             resume_keys()
+#             transform_key(key, action, context)
+#             update_pressed_states(keystate)
+#     else:
+#         # not a modifier or a multi-key, so pass straight to transform
+#         transform_key(key, action, context)
+
+#     if action.just_pressed():
+#         _last_key = key
 
 
 def on_key(keystate: Keystate, context: KeyContext):
