@@ -434,6 +434,7 @@ def on_event(event: InputEvent, device):
             # Create a new Keystate for each remapped key
             mod_keystate = Keystate(
                 inkey=mod_key,            # Individual modifier key
+                key=mod_key,
                 action=keystate.action,   # Same action (PRESS/RELEASE)
                 time=keystate.time,       # Preserve original timestamp
                 prior=None                # No prior state needed for these keys
