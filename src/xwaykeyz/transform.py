@@ -428,16 +428,28 @@ def on_event(event: InputEvent, device):
 
 
 
-    if isinstance(keystate.key, tuple):  # Check if the remapped key is a tuple
+    if isinstance(keystate.key, tuple):
         debug(f"on_event: Processing tuple of keys {keystate.key}")
+
+        # Track multi-modifier state on PRESS
+        if action == Action.PRESS:
+            _multimod_states[key] = keystate.key
+            debug(f"_multimod_states updated: {key} -> {keystate.key}")
+
+        # Clean up multi-modifier state on RELEASE
+        elif action == Action.RELEASE:
+            if key in _multimod_states:
+                del _multimod_states[key]
+                debug(f"_multimod_states cleared: {key}")
+
+        # Process each key in the tuple as a separate event
         for mod_key in keystate.key:
-            # Create a new Keystate for each remapped key
             mod_keystate = Keystate(
-                inkey=mod_key,            # Individual modifier key
+                inkey=mod_key,
                 key=mod_key,
-                action=keystate.action,   # Same action (PRESS/RELEASE)
-                time=keystate.time,       # Preserve original timestamp
-                prior=None                # No prior state needed for these keys
+                action=keystate.action,
+                time=keystate.time,
+                prior=None
             )
             on_key(mod_keystate, context)  # Pass to on_key for processing
         return  # Stop further processing for the original key
