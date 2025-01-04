@@ -438,7 +438,7 @@ def on_event(event: InputEvent, device):
                 time=keystate.time,       # Preserve original timestamp
                 prior=None                # No prior state needed for these keys
             )
-            on_key(mod_keystate)  # Pass to on_key for processing
+            on_key(mod_keystate, context)  # Pass to on_key for processing
         return  # Stop further processing for the original key
 
 
