@@ -2,8 +2,10 @@ import asyncio
 import time
 import inspect
 
+
+from enum import Enum
 from evdev import ecodes, InputEvent
-from typing import Dict, List, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from .config_api import escape_next_key, get_configuration, ignore_key, _ENVIRON, _REPEATING_KEYS
 from .lib import logger
@@ -19,10 +21,22 @@ from .models.modifier import Modifier
 from .models.modmap import Modmap, MultiModmap
 from .output import Output
 
-_MODMAPS: List[Modmap] = None
-_MULTI_MODMAPS: List[MultiModmap] = None
-_KEYMAPS: List[Keymap] = None
-_TIMEOUTS = None
+
+class KeySource(Enum):
+    PHYSICAL    = 1
+    VIRTUAL     = 2
+
+
+class KeyStateEntry(NamedTuple):
+    key:        Key
+    source:     KeySource  # Enum to indicate the source
+    origin:     Optional[Key]  # The originating key (None for physical keys)
+
+
+_MODMAPS: List[Modmap]                  = None
+_MULTI_MODMAPS: List[MultiModmap]       = None
+_KEYMAPS: List[Keymap]                  = None
+_TIMEOUTS                               = None
 
 def boot_config():
     global _MODMAPS
@@ -38,7 +52,8 @@ def boot_config():
 
 _active_keymaps = None
 _output = Output()
-_key_states: Dict[Key, Keystate] = {}
+# _key_states: Dict[Key, Keystate] = {}
+_key_states: Dict[KeyStateEntry, Keystate] = {}
 _multimod_states: Dict[Key, Tuple[Key]] = {}
 _sticky = {}
 
@@ -81,17 +96,31 @@ def is_sticky(key):
     return False
 
 
-def update_pressed_states(keystate: Keystate):
-    # release
-    if keystate.action == Action.RELEASE:
-        del _key_states[keystate.inkey]
+# def update_pressed_states(keystate: Keystate):
+#     # release
+#     if keystate.action == Action.RELEASE:
+#         del _key_states[keystate.inkey]
 
-    # press / add
-    if keystate.inkey not in _key_states:
-        # add state
-        if keystate.action == Action.PRESS:
-            _key_states[keystate.inkey] = keystate
+#     # press / add
+#     if keystate.inkey not in _key_states:
+#         # add state
+#         if keystate.action == Action.PRESS:
+#             _key_states[keystate.inkey] = keystate
+#         return
+
+
+def update_pressed_states(keystate: Keystate, source=KeySource.PHYSICAL, origin=None):
+    ks_entry = KeyStateEntry(key=keystate.inkey, source=source, origin=origin)
+
+    # PRESS: Add to _key_states
+    if keystate.action == Action.PRESS:
+        if ks_entry not in _key_states:
+            _key_states[ks_entry] = keystate
         return
+
+    # RELEASE: Remove from _key_states
+    if keystate.action == Action.RELEASE:
+        _key_states.pop(ks_entry, None)  # Safely remove key
 
 
 # ─── SUSPEND AND RESUME INPUT SIDE ──────────────────────────────────────────────
@@ -273,10 +302,11 @@ _last_key = None
 
 
 # translate keycode (like xmodmap)
-# this revision also supports remapping a single key to modifier list)
+# this revision also supports remapping a single key to tuple of modifier keys
 def apply_modmap(keystate: Keystate, context: KeyContext):
     inkey = keystate.inkey
     keystate.key = inkey  # Default to the input key
+
     # Use the first (generic) modmap as the default active modmap
     active_modmap = _MODMAPS[0]
     conditional_modmaps = _MODMAPS[1:]
@@ -286,26 +316,44 @@ def apply_modmap(keystate: Keystate, context: KeyContext):
         if inkey in modmap:
             if modmap.conditional(context):
                 active_modmap = modmap
-                # break out after activating the first keymap encountered that has the key in it
+                # Break out after activating the first keymap encountered that has the key in it
                 break
 
     # Check if the active modmap provides a valid mapping
     if inkey in active_modmap:
         output_keys = active_modmap[inkey]
 
-        if isinstance(output_keys, tuple):  # If it's a tuple of modifiers
+        # Handle 1-to-Many (tuple of modifiers) remaps
+        if isinstance(output_keys, tuple):
             if all(Modifier.is_key_modifier(k) for k in output_keys):
                 debug(f"MODMAP: {inkey} => {output_keys} (modifiers) [{active_modmap.name}]")
-                _multimod_states[inkey] = output_keys  # Track the remapped modifiers
-                keystate.key = output_keys  # Store the tuple in keystate.key
+                for mod_key in output_keys:
+                    mod_keystate = Keystate(
+                        inkey=mod_key,
+                        key=mod_key,
+                        action=keystate.action,
+                        time=keystate.time,
+                        prior=None  # Virtual keys don't have a prior state
+                    )
+                    update_pressed_states(
+                        mod_keystate,
+                        source=KeySource.VIRTUAL,
+                        origin=inkey  # Track the origin key
+                    )
+                    _output.send_key_action(mod_key, keystate.action)
+                return  # Stop further processing for the original key
             else:
                 raise ValueError(
                     f"Invalid modmap output for {inkey}: {output_keys}. "
                     "Only modifier keys are allowed in a tuple."
                 )
-        elif isinstance(output_keys, Key):  # If it's a single key
+
+        # Handle 1-to-1 remaps (single key)
+        elif isinstance(output_keys, Key):
             debug(f"MODMAP: {inkey} => {output_keys} [{active_modmap.name}]")
             keystate.key = output_keys
+            return
+
         else:
             raise ValueError(f"Invalid modmap output for {inkey}: {output_keys}. Must be a Key or tuple of modifiers.")
 
@@ -337,12 +385,12 @@ def find_keystate_or_new(inkey, action):
     if inkey not in _key_states:
         return Keystate(inkey=inkey, action=action)
 
-    ks: Keystate = _key_states[inkey]
-    ks.prior = ks.copy()
-    delattr(ks.prior, "prior")
-    ks.action = action
-    ks.time = time
-    return ks
+    keystate: Keystate = _key_states[inkey]
+    keystate.prior = keystate.copy()
+    delattr(keystate.prior, "prior")
+    keystate.action = action
+    keystate.time = time
+    return keystate
 
 
 # ─── KEYBOARD INPUT PROCESSING PIPELINE ─────────────────────────────────────────
@@ -375,7 +423,7 @@ def on_event(event: InputEvent, device):
 
     # EXPERIMENTAL: Pass through "repeat" key events without further processing.
     # Drastically decreases CPU usage when holding a non-modifier key down (e.g., gaming).
-    # What negative side effects can we expect from doing this? Only obscure edge cases? 
+    # What negative side effects can we expect from doing this? Only obscure edge cases?
     # Meaning of "magic numbers" for event.value (source: `evtest` output): 
     #   0 == 'released'
     #   1 == 'pressed'
@@ -383,7 +431,10 @@ def on_event(event: InputEvent, device):
     # Pass through can be disabled using ignore_repeating_keys() API function in config file.
     # Usage in config: ignore_repeating_keys(False)
     # 
-    if ignore_repeating_keys and event.value == 2:
+    RELEASED    = 0
+    PRESSED     = 1
+    REPEATED    = 2
+    if ignore_repeating_keys and event.value == REPEATED:
         if logger.VERBOSE:
             print()     # give some space from regular event blocks in the log
             debug(
