@@ -1,4 +1,34 @@
+import keyword
+import re
+
+from enum import EnumMeta
+from ordered_set import OrderedSet
+from typing import List
+
+from .combo import Combo
 from .key import Key
+
+
+def validate_new_key_name(name):
+    """Validate the user-provided name for a new Key enum entry, for safety and usability."""
+
+    # Check if name argument is a string
+    if not isinstance(name, str):
+        raise TypeError(f"'{name}' is not a valid string.")
+
+    # Ensure it's not a Python keyword
+    if keyword.iskeyword(name):
+        raise ValueError(f"'{name}' is a reserved Python keyword and cannot be used.")
+
+    # Ensure it follows identifier rules
+    if not name.isidentifier():
+        raise ValueError(f"'{name}' is not a valid Python identifier.")
+
+    # Restrict to uppercase alphanumeric and underscore
+    if not re.match(r'^[A-Z_][A-Z0-9_]*$', name):
+        raise ValueError(f"'{name}' contains invalid characters or is not all-uppercase.")
+
+    return name  # Return the validated name for further use
 
 
 class Modifier:
@@ -117,3 +147,66 @@ Modifier(
 # normal key, but as a normal key it likely should be flagged as a modifier
 # based on how it's typically used
 Modifier("FN", aliases=["Fn"], key=Key.KEY_FN)
+
+
+# Dynamically add new keys to the Key enum
+def add_key_to_enum(enum_cls: EnumMeta, name: str, value: int):
+    if not isinstance(enum_cls, EnumMeta):
+        raise TypeError("Provided class is not an Enum")
+    if name in enum_cls.__members__:
+        existing_value = enum_cls[name].value
+        raise ValueError(f"Key '{name}' already exists in {enum_cls.__name__} "
+                            f"with value {existing_value}.")
+    enum_cls._member_map_[name] = value
+    enum_cls._value2member_map_[value] = name
+    setattr(enum_cls, name, value)
+
+
+class CompositeModifier:
+    """
+    Creates a new invented Key and a Modifier that will be replaced by
+    a group of multiple Keys when used in Combos.
+
+    The group of multiple Keys must all be validatable as modifiers.
+    """
+    _COMPOSITE_MODIFIERS = {}
+
+    def __init__(self, name: str, aliases: List[str], member_keys: List[Key]):
+        # Make sure user isn't passing in anything strange for name string
+        self.name = validate_new_key_name(name)
+
+        # Create a unique original Key for this CompositeModifier
+        unique_new_enum_value   = max(key.value for key in Key) + 1
+        add_key_to_enum(Key, self.name, unique_new_enum_value)
+
+        # Define this new Key as a Modifier
+        self.invented_key       = Key[self.name]
+        self.modifier           = Modifier(name, aliases, key=self.invented_key)
+
+        # Ensure all replacements are valid Modifiers
+        for key in member_keys:
+            if not Modifier.is_key_modifier(key):
+                raise ValueError(f"Key '{key}' is not associated with a Modifier.")
+        self.member_keys = member_keys
+
+        # Register this CompositeModifier
+        CompositeModifier._COMPOSITE_MODIFIERS[self.modifier] = self
+
+    def decompose_composite_mod(self, combo: Combo):
+        """Replace a CompositeModifier artificial Key alias with its member Key aliases."""
+        if self.modifier in combo.modifiers:
+            mods_in_combo       = OrderedSet(combo.modifiers)
+            mods_in_combo.discard(self.modifier)
+            mods_in_combo.update(self.member_keys)
+            return Combo(mods_in_combo, combo.key)
+        return combo
+
+    @classmethod
+    def is_composite_modifier(cls, modifier: Modifier) -> bool:
+        """Check if a Modifier is a CompositeModifier."""
+        return modifier in cls._COMPOSITE_MODIFIERS
+
+    @classmethod
+    def get_composite(cls, modifier: Modifier):
+        """Retrieve the CompositeModifier for a given Modifier, if it exists."""
+        return cls._COMPOSITE_MODIFIERS.get(modifier)

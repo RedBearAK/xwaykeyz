@@ -3,6 +3,7 @@ import time
 import inspect
 
 from evdev import ecodes, InputEvent
+from ordered_set import OrderedSet
 from typing import Dict, List
 
 from .config_api import escape_next_key, get_configuration, ignore_key, _ENVIRON, _REPEATING_KEYS
@@ -15,7 +16,7 @@ from .models.trigger import Trigger
 from .models.key import Key
 from .models.keymap import Keymap
 from .models.keystate import Keystate
-from .models.modifier import Modifier
+from .models.modifier import Modifier, CompositeModifier
 from .models.modmap import Modmap, MultiModmap
 from .output import Output
 
@@ -485,6 +486,19 @@ def transform_key(key, action, ctx: KeyContext):
         return
 
     combo = Combo(get_pressed_mods(), key)
+
+    # Decompose CompositeModifiers in the Combo, only if necessary
+    if any(CompositeModifier.is_composite_modifier(mod) for mod in combo.modifiers):
+        new_modifiers = OrderedSet()
+        for modifier in combo.modifiers:
+            composite_mod: CompositeModifier = CompositeModifier.get_composite(modifier)
+            if composite_mod:
+                new_modifiers.update(composite_mod.member_keys)
+            else:
+                new_modifiers.add(modifier)
+        debug(f"Decomposed composite modifier: {modifier} -> \n"
+                f"    {composite_mod.member_keys}")
+        combo = Combo(new_modifiers, combo.key)
 
     if _active_keymaps is escape_next_key:
         debug(f"Escape key: {combo} => {key}")
