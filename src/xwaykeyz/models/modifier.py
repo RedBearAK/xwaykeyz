@@ -246,11 +246,15 @@ def add_key_to_enum(enum_cls: EnumMeta, name: str, value: int):
             f"Key '{name}' already exists with a different value ({existing_value})."
         )
 
-    # Dynamically add the new key to the enum
-    new_member = enum_cls(name, value)
+    # Dynamically create a new enum member
+    new_member = object.__new__(enum_cls)
+    new_member._name_ = name
+    new_member._value_ = value
+
+    # Update the enum's internal mappings
     enum_cls._member_map_[name] = new_member
     enum_cls._value2member_map_[value] = new_member
     enum_cls._member_names_.append(name)
 
-    # Add the attribute to the enum class itself
+    # Bind the new member to the enum class
     setattr(enum_cls, name, new_member)
