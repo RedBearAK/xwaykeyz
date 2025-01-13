@@ -5,7 +5,6 @@ from enum import EnumMeta
 from ordered_set import OrderedSet
 from typing import List
 
-from .combo import Combo
 from .key import Key
 
 
@@ -192,8 +191,9 @@ class CompositeModifier:
         # Register this CompositeModifier
         CompositeModifier._COMPOSITE_MODIFIERS[self.modifier] = self
 
-    def decompose_composite_mod(self, combo: Combo):
+    def decompose_composite_mod(self, combo):
         """Replace a CompositeModifier artificial Key alias with its member Key aliases."""
+        from .combo import Combo  # Deferred import to avoid circular import
         if self.modifier in combo.modifiers:
             mods_in_combo       = OrderedSet(combo.modifiers)
             mods_in_combo.discard(self.modifier)
