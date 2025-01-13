@@ -228,7 +228,7 @@ class CompositeModifier:
 
 def add_key_to_enum(enum_cls: EnumMeta, name: str, value: int):
     """
-    Replace the entire Enum class to add a new member.
+    Dynamically add a new Key to an Enum without replacing it.
     
     :param enum_cls: The Enum class to modify.
     :param name: The name of the new Key.
@@ -246,16 +246,11 @@ def add_key_to_enum(enum_cls: EnumMeta, name: str, value: int):
             f"Key '{name}' already exists with a different value ({existing_value})."
         )
 
-    # Gather existing members
-    members = {key: enum_cls[key].value for key in enum_cls.__members__}
-    # Add the new member
-    members[name] = value
+    # Dynamically add the new key to the enum
+    new_member = enum_cls(name, value)
+    enum_cls._member_map_[name] = new_member
+    enum_cls._value2member_map_[value] = new_member
+    enum_cls._member_names_.append(name)
 
-    # Replace the enum class
-    new_enum = EnumMeta(enum_cls.__name__, enum_cls.__bases__, members)
-
-    # Update the original enum class's internals
-    enum_cls._member_map_ = new_enum._member_map_
-    enum_cls._value2member_map_ = new_enum._value2member_map_
-    enum_cls._member_names_ = new_enum._member_names_
-    setattr(enum_cls, name, new_enum[name])
+    # Add the attribute to the enum class itself
+    setattr(enum_cls, name, new_member)
