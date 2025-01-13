@@ -228,8 +228,8 @@ class CompositeModifier:
 
 def add_key_to_enum(enum_cls: EnumMeta, name: str, value: int):
     """
-    Dynamically add a new Key to an Enum.
-
+    Replace the entire Enum class to add a new member.
+    
     :param enum_cls: The Enum class to modify.
     :param name: The name of the new Key.
     :param value: The value of the new Key.
@@ -237,21 +237,25 @@ def add_key_to_enum(enum_cls: EnumMeta, name: str, value: int):
     if not isinstance(enum_cls, EnumMeta):
         raise TypeError("Provided class is not an Enum.")
 
+    # Check if the key already exists
     if name in enum_cls.__members__:
         existing_value = enum_cls[name].value
         if existing_value == value:
-            return  # The Key already exists with the same value, no need to add
+            return  # Key already exists with the same value
         raise ValueError(
             f"Key '{name}' already exists with a different value ({existing_value})."
         )
 
-    # Safely add the new member
-    temp_dict = {**enum_cls.__members__}
-    temp_dict[name] = value
-    temp_enum = EnumMeta(enum_cls.__name__, enum_cls.__bases__, temp_dict)
+    # Gather existing members
+    members = {key: enum_cls[key].value for key in enum_cls.__members__}
+    # Add the new member
+    members[name] = value
 
-    typed_temp_enum: EnumMeta = temp_enum
+    # Replace the enum class
+    new_enum = EnumMeta(enum_cls.__name__, enum_cls.__bases__, members)
 
-    # Overwrite the original Enum class with the updated one
-    enum_cls._member_map_       = typed_temp_enum._member_map_
-    enum_cls._value2member_map_ = typed_temp_enum._value2member_map_
+    # Update the original enum class's internals
+    enum_cls._member_map_ = new_enum._member_map_
+    enum_cls._value2member_map_ = new_enum._value2member_map_
+    enum_cls._member_names_ = new_enum._member_names_
+    setattr(enum_cls, name, new_enum[name])
