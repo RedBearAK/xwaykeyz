@@ -229,7 +229,7 @@ class CompositeModifier:
 def add_key_to_enum(enum_cls: EnumMeta, name: str, value: int):
     """
     Dynamically add a new Key to an Enum without replacing it.
-    
+
     :param enum_cls: The Enum class to modify.
     :param name: The name of the new Key.
     :param value: The value of the new Key.
@@ -247,7 +247,7 @@ def add_key_to_enum(enum_cls: EnumMeta, name: str, value: int):
         )
 
     # Dynamically create a new enum member
-    new_member = object.__new__(enum_cls)
+    new_member = int.__new__(enum_cls, value)  # Use int.__new__ to create the raw instance
     new_member._name_ = name
     new_member._value_ = value
 
