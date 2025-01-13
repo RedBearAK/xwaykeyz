@@ -148,19 +148,6 @@ Modifier(
 Modifier("FN", aliases=["Fn"], key=Key.KEY_FN)
 
 
-# Dynamically add new keys to the Key enum
-def add_key_to_enum(enum_cls: EnumMeta, name: str, value: int):
-    if not isinstance(enum_cls, EnumMeta):
-        raise TypeError("Provided class is not an Enum")
-    if name in enum_cls.__members__:
-        existing_value = enum_cls[name].value
-        raise ValueError(f"Key '{name}' already exists in {enum_cls.__name__} "
-                            f"with value {existing_value}.")
-    enum_cls._member_map_[name] = value
-    enum_cls._value2member_map_[value] = name
-    setattr(enum_cls, name, value)
-
-
 class CompositeModifier:
     """
     Creates a new invented Key and a Modifier that will be replaced by
@@ -171,16 +158,26 @@ class CompositeModifier:
     _COMPOSITE_MODIFIERS = {}
 
     def __init__(self, name: str, aliases: List[str], member_keys: List[Key]):
-        # Make sure user isn't passing in anything strange for name string
+        """
+        Initialize a CompositeModifier.
+
+        :param name: Unique name for the composite modifier.
+        :param aliases: List of string aliases for the modifier.
+        :param member_keys: List of Key objects that make up the composite.
+        """
+        # Validate the name
         self.name = validate_new_key_name(name)
 
-        # Create a unique original Key for this CompositeModifier
-        unique_new_enum_value   = max(key.value for key in Key) + 1
-        add_key_to_enum(Key, self.name, unique_new_enum_value)
+        # Generate a unique value for the new Key
+        unique_new_enum_value = max(key.value for key in Key) + 1
 
-        # Define this new Key as a Modifier
-        self.invented_key       = Key[self.name]
-        self.modifier           = Modifier(name, aliases, key=self.invented_key)
+        # Safely add the new Key to the Key enum
+        if name not in Key.__members__:
+            add_key_to_enum(Key, self.name, unique_new_enum_value)
+
+        # Define the new Key as a Modifier
+        self.invented_key = Key[self.name]
+        self.modifier = Modifier(name, aliases, key=self.invented_key)
 
         # Ensure all replacements are valid Modifiers
         for key in member_keys:
@@ -189,13 +186,20 @@ class CompositeModifier:
         self.member_keys = member_keys
 
         # Register this CompositeModifier
+        if self.modifier in CompositeModifier._COMPOSITE_MODIFIERS:
+            raise ValueError(f"CompositeModifier '{name}' already exists.")
         CompositeModifier._COMPOSITE_MODIFIERS[self.modifier] = self
 
     def decompose_composite_mod(self, combo):
-        """Replace a CompositeModifier artificial Key alias with its member Key aliases."""
+        """
+        Replace a CompositeModifier artificial Key alias with its member Key aliases.
+
+        :param combo: The Combo object to process.
+        :return: A new Combo with the composite modifier replaced.
+        """
         from .combo import Combo  # Deferred import to avoid circular import
         if self.modifier in combo.modifiers:
-            mods_in_combo       = OrderedSet(combo.modifiers)
+            mods_in_combo = OrderedSet(combo.modifiers)
             mods_in_combo.discard(self.modifier)
             mods_in_combo.update(self.member_keys)
             return Combo(mods_in_combo, combo.key)
@@ -203,10 +207,51 @@ class CompositeModifier:
 
     @classmethod
     def is_composite_modifier(cls, modifier: Modifier) -> bool:
-        """Check if a Modifier is a CompositeModifier."""
+        """
+        Check if a Modifier is a CompositeModifier.
+
+        :param modifier: The Modifier to check.
+        :return: True if the Modifier is a CompositeModifier, False otherwise.
+        """
         return modifier in cls._COMPOSITE_MODIFIERS
 
     @classmethod
     def get_composite(cls, modifier: Modifier):
-        """Retrieve the CompositeModifier for a given Modifier, if it exists."""
+        """
+        Retrieve the CompositeModifier for a given Modifier, if it exists.
+
+        :param modifier: The Modifier to look up.
+        :return: The CompositeModifier instance or None if not found.
+        """
         return cls._COMPOSITE_MODIFIERS.get(modifier)
+
+
+def add_key_to_enum(enum_cls: EnumMeta, name: str, value: int):
+    """
+    Dynamically add a new Key to an Enum.
+
+    :param enum_cls: The Enum class to modify.
+    :param name: The name of the new Key.
+    :param value: The value of the new Key.
+    """
+    if not isinstance(enum_cls, EnumMeta):
+        raise TypeError("Provided class is not an Enum.")
+
+    if name in enum_cls.__members__:
+        existing_value = enum_cls[name].value
+        if existing_value == value:
+            return  # The Key already exists with the same value, no need to add
+        raise ValueError(
+            f"Key '{name}' already exists with a different value ({existing_value})."
+        )
+
+    # Safely add the new member
+    temp_dict = {**enum_cls.__members__}
+    temp_dict[name] = value
+    temp_enum = EnumMeta(enum_cls.__name__, enum_cls.__bases__, temp_dict)
+
+    typed_temp_enum: EnumMeta = temp_enum
+
+    # Overwrite the original Enum class with the updated one
+    enum_cls._member_map_       = typed_temp_enum._member_map_
+    enum_cls._value2member_map_ = typed_temp_enum._value2member_map_
