@@ -153,7 +153,7 @@ class CompositeModifier:
     Represents a composite modifier where a proxy key is replaced by
     a group of multiple keys (member keys) when processed.
 
-    The member keys must all be valid Modifiers.
+    The member keys must all be Keys that validate as Modifiers.
     """
     _COMPOSITE_MODIFIERS = {}
     _PROXY_KEYS = set()  # Fast lookup for proxy keys, enforcement of uniqueness
@@ -197,35 +197,34 @@ class CompositeModifier:
         CompositeModifier._COMPOSITE_MODIFIERS[self.modifier] = self
 
     @classmethod
-    def expand_composite_mods(cls, pressed_mods: List[Key]) -> List[Key]:
+    def expand_composite_mods(cls, pressed_mods: List[Modifier]) -> List[Modifier]:
         """
-        Apply all registered CompositeModifiers to a list of pressed keys.
+        Apply all registered CompositeModifiers to a list of pressed modifiers.
 
-        Ensures that the final list contains only unique keys.
+        Ensures that the final list contains only unique modifiers.
 
-        :param pressed_mods: List of pressed Keys that are Modifier objects.
-        :return: A new list of Keys with composite proxies replaced by their member keys.
+        :param pressed_mods: List of pressed Modifiers.
+        :return: A new list of Modifiers with composite proxies replaced by their member modifiers.
         """
-
         print(f"## ## ## ##  Pressed mods list: {pressed_mods = }")
 
-        # Start with a unique set of pressed modifiers
-        unique_pressed_mod_keys = set(pressed_mods)
+        # Use a set to keep track of unique modifiers
+        unique_mods = set(pressed_mods)
 
-        print(f"## ## ## ##  Before processing: {unique_pressed_mod_keys = }")
+        print(f"## ## ## ##  Before processing: {unique_mods = }")
 
-        # Iterate over all proxy keys
-        for proxy_key in cls._PROXY_KEYS:
-            if proxy_key in unique_pressed_mod_keys:
-                # Type hint for VSCode syntax highlighting
-                composite_mod: CompositeModifier = cls.get_composite_mod_from_proxy(proxy_key)
-                if composite_mod:
-                    unique_pressed_mod_keys.remove(proxy_key)  # Remove the proxy key
-                    unique_pressed_mod_keys.update(composite_mod.member_keys)  # Add member keys
+        # Iterate over all composite modifiers
+        for composite_mod in cls._COMPOSITE_MODIFIERS.values():
+            # Type hint to support VSCode syntax highlighting
+            typed_composite_mod: CompositeModifier = composite_mod
+            if typed_composite_mod.modifier in unique_mods:
+                # Replace the proxy modifier with its member modifiers
+                unique_mods.remove(typed_composite_mod.modifier)
+                unique_mods.update(Modifier.from_key(key) for key in typed_composite_mod.member_keys)
 
-        print(f"## ## ## ##  After processing: {unique_pressed_mod_keys = }")
+        print(f"## ## ## ##  After processing: {unique_mods = }")
 
-        return list(unique_pressed_mod_keys)  # Convert back to a list
+        return list(unique_mods)
 
     @classmethod
     def get_composite_mod_from_proxy(cls, proxy_key: Key):
