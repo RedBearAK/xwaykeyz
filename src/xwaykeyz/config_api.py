@@ -20,7 +20,7 @@ from .models.trigger import Trigger
 from .models.key import Key, ASCII_TO_KEY
 from .models.keymap import Keymap
 from .models.modifier import Modifier
-from .models.modmap import Modmap, MultiModmap
+from .models.modmap import Modmap, MultiModmap, CompositeModmap
 
 # GLOBALS
 bind                            = ComboHint.BIND
@@ -575,6 +575,22 @@ def multipurpose_modmap(name, mappings, when=None):
     mmm = MultiModmap(name, mappings, when=when)
     _MULTI_MODMAPS.append(mmm)
     return mmm
+
+
+_COMPOSITE_MODMAPS = []
+
+
+def composite_modmap(name, mappings, when=None):
+    """
+    Define a composite modmap that maps proxy keys to their member keys.
+
+    :param name: The name of the composite modmap.
+    :param mappings: A dictionary where each proxy key maps to a list of member keys.
+    :param when: Optional condition for when the composite modmap applies.
+    """
+    cm = CompositeModmap(name, mappings, when=when)
+    _COMPOSITE_MODMAPS.append(cm)
+    return cm
 
 
 # ─── KEYMAPS ────────────────────────────────────────────────────────────────
