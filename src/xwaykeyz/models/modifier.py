@@ -196,21 +196,6 @@ class CompositeModifier:
             raise ValueError(f"CompositeModifier '{name}' already exists.")
         CompositeModifier._COMPOSITE_MODIFIERS[self.modifier] = self
 
-    def replace_proxy_key(self, pressed_keys: List[Key]) -> List[Key]:
-        """
-        Replace occurrences of the proxy key in the list of pressed keys with its member keys.
-
-        :param pressed_keys: List of pressed Keys.
-        :return: A new list of Keys with the proxy key replaced.
-        """
-        # Use a set to track unique keys for the output
-        unique_keys = set(pressed_keys)  # Start with all pressed keys
-
-        if self.proxy_key in unique_keys:
-            unique_keys.remove(self.proxy_key)  # Remove the proxy key
-            unique_keys.update(self.member_keys)  # Add the member keys
-        return list(unique_keys)  # Convert back to a list for compatibility
-
     @classmethod
     def expand_composite_mods(cls, pressed_mods: List[Key]) -> List[Key]:
         """
@@ -221,8 +206,13 @@ class CompositeModifier:
         :param pressed_mods: List of pressed Keys that are Modifier objects.
         :return: A new list of Keys with composite proxies replaced by their member keys.
         """
+
+        print(f"## ## ## ##  Pressed mods list: {pressed_mods = }")
+
         # Start with a unique set of pressed modifiers
         unique_pressed_mod_keys = set(pressed_mods)
+
+        print(f"## ## ## ##  Before processing: {unique_pressed_mod_keys = }")
 
         # Iterate over all proxy keys
         for proxy_key in cls._PROXY_KEYS:
@@ -232,6 +222,9 @@ class CompositeModifier:
                 if composite_mod:
                     unique_pressed_mod_keys.remove(proxy_key)  # Remove the proxy key
                     unique_pressed_mod_keys.update(composite_mod.member_keys)  # Add member keys
+
+        print(f"## ## ## ##  After processing: {unique_pressed_mod_keys = }")
+
         return list(unique_pressed_mod_keys)  # Convert back to a list
 
     @classmethod
