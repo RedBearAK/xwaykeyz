@@ -150,39 +150,45 @@ Modifier("FN", aliases=["Fn"], key=Key.KEY_FN)
 
 class CompositeModifier:
     """
-    Creates a new invented Key and a Modifier that will be replaced by
-    a group of multiple Keys when used in Combos.
+    Represents a composite modifier where a proxy key is replaced by
+    a group of multiple keys (member keys) when processed.
 
-    The group of multiple Keys must all be validatable as modifiers.
+    The member keys must all be valid Modifiers.
     """
     _COMPOSITE_MODIFIERS = {}
+    _PROXY_KEYS = set()  # Fast lookup for proxy keys, enforcement of uniqueness
 
-    def __init__(self, name: str, aliases: List[str], member_keys: List[Key]):
+    def __init__(self, name: str, aliases: List[str], proxy_key: Key, member_keys: List[Key]):
         """
         Initialize a CompositeModifier.
 
         :param name: Unique name for the composite modifier.
-        :param aliases: List of string aliases for the modifier.
+        :param proxy_key: Key to use as the proxy for this modifier.
         :param member_keys: List of Key objects that make up the composite.
+        :param aliases: List of string aliases for the modifier.
         """
         # Validate the name
         self.name = validate_new_key_name(name)
 
-        # Generate a unique value for the new Key
-        unique_new_enum_value = max(key.value for key in Key) + 1
+        # Validate the proxy key
+        if not isinstance(proxy_key, Key):
+            raise ValueError(f"Proxy key '{proxy_key}' must be a valid Key.")
 
-        # Safely add the new Key to the Key enum
-        if name not in Key.__members__:
-            add_key_to_enum(Key, self.name, unique_new_enum_value)
+        # Check if the proxy key is already in use
+        if proxy_key in CompositeModifier._PROXY_KEYS:
+            raise ValueError(f"Proxy key '{proxy_key}' already used in a CompositeModifier.")
 
-        # Define the new Key as a Modifier
-        self.invented_key = Key[self.name]
-        self.modifier = Modifier(name, aliases, key=self.invented_key)
+        # Assign the proxy key and register it
+        self.proxy_key = proxy_key
+        CompositeModifier._PROXY_KEYS.add(proxy_key)
 
-        # Ensure all replacements are valid Modifiers
+        # Define the proxy key as a Modifier
+        self.modifier = Modifier(name, aliases, key=self.proxy_key)
+
+        # Ensure all member keys are valid Modifiers
         for key in member_keys:
             if not Modifier.is_key_modifier(key):
-                raise ValueError(f"Key '{key}' is not associated with a Modifier.")
+                raise ValueError(f"CompositeModifier member Key '{key}' is not a Modifier.")
         self.member_keys = member_keys
 
         # Register this CompositeModifier
@@ -190,71 +196,55 @@ class CompositeModifier:
             raise ValueError(f"CompositeModifier '{name}' already exists.")
         CompositeModifier._COMPOSITE_MODIFIERS[self.modifier] = self
 
-    def decompose_composite_mod(self, combo):
+    def replace_proxy_key(self, pressed_keys: List[Key]) -> List[Key]:
         """
-        Replace a CompositeModifier artificial Key alias with its member Key aliases.
+        Replace occurrences of the proxy key in the list of pressed keys with its member keys.
 
-        :param combo: The Combo object to process.
-        :return: A new Combo with the composite modifier replaced.
+        :param pressed_keys: List of pressed Keys.
+        :return: A new list of Keys with the proxy key replaced.
         """
-        from .combo import Combo  # Deferred import to avoid circular import
-        if self.modifier in combo.modifiers:
-            mods_in_combo = OrderedSet(combo.modifiers)
-            mods_in_combo.discard(self.modifier)
-            mods_in_combo.update(self.member_keys)
-            return Combo(mods_in_combo, combo.key)
-        return combo
+        # Use a set to track unique keys for the output
+        unique_keys = set(pressed_keys)  # Start with all pressed keys
+
+        if self.proxy_key in unique_keys:
+            unique_keys.remove(self.proxy_key)  # Remove the proxy key
+            unique_keys.update(self.member_keys)  # Add the member keys
+        return list(unique_keys)  # Convert back to a list for compatibility
 
     @classmethod
-    def is_composite_modifier(cls, modifier: Modifier) -> bool:
+    def expand_composite_mods(cls, pressed_mods: List[Key]) -> List[Key]:
         """
-        Check if a Modifier is a CompositeModifier.
+        Apply all registered CompositeModifiers to a list of pressed keys.
 
-        :param modifier: The Modifier to check.
-        :return: True if the Modifier is a CompositeModifier, False otherwise.
+        Ensures that the final list contains only unique keys.
+
+        :param pressed_mods: List of pressed Keys that are Modifier objects.
+        :return: A new list of Keys with composite proxies replaced by their member keys.
         """
-        return modifier in cls._COMPOSITE_MODIFIERS
+        # Start with a unique set of pressed modifiers
+        unique_pressed_mod_keys = set(pressed_mods)
+
+        # Iterate over all proxy keys
+        for proxy_key in cls._PROXY_KEYS:
+            if proxy_key in unique_pressed_mod_keys:
+                # Type hint for VSCode syntax highlighting
+                composite_mod: CompositeModifier = cls.get_composite_mod_from_proxy(proxy_key)
+                if composite_mod:
+                    unique_pressed_mod_keys.remove(proxy_key)  # Remove the proxy key
+                    unique_pressed_mod_keys.update(composite_mod.member_keys)  # Add member keys
+        return list(unique_pressed_mod_keys)  # Convert back to a list
 
     @classmethod
-    def get_composite(cls, modifier: Modifier):
+    def get_composite_mod_from_proxy(cls, proxy_key: Key):
         """
-        Retrieve the CompositeModifier for a given Modifier, if it exists.
+        Retrieve the CompositeModifier associated with a given proxy key.
 
-        :param modifier: The Modifier to look up.
-        :return: The CompositeModifier instance or None if not found.
+        :param proxy_key: The proxy key to look up.
+        :return: The CompositeModifier instance if found, otherwise None.
         """
-        return cls._COMPOSITE_MODIFIERS.get(modifier)
-
-
-def add_key_to_enum(enum_cls: EnumMeta, name: str, value: int):
-    """
-    Dynamically add a new Key to an Enum without replacing it.
-
-    :param enum_cls: The Enum class to modify.
-    :param name: The name of the new Key.
-    :param value: The value of the new Key.
-    """
-    if not isinstance(enum_cls, EnumMeta):
-        raise TypeError("Provided class is not an Enum.")
-
-    # Check if the key already exists
-    if name in enum_cls.__members__:
-        existing_value = enum_cls[name].value
-        if existing_value == value:
-            return  # Key already exists with the same value
-        raise ValueError(
-            f"Key '{name}' already exists with a different value ({existing_value})."
-        )
-
-    # Dynamically create a new enum member
-    new_member = int.__new__(enum_cls, value)  # Use int.__new__ to create the raw instance
-    new_member._name_ = name
-    new_member._value_ = value
-
-    # Update the enum's internal mappings
-    enum_cls._member_map_[name] = new_member
-    enum_cls._value2member_map_[value] = new_member
-    enum_cls._member_names_.append(name)
-
-    # Bind the new member to the enum class
-    setattr(enum_cls, name, new_member)
+        for composite_mod in cls._COMPOSITE_MODIFIERS.values():
+            # Type annotation to get syntax highlighting on ".proxy_key" to work
+            type_hinted_composite_mod: CompositeModifier = composite_mod
+            if type_hinted_composite_mod.proxy_key == proxy_key:
+                return composite_mod
+        return None

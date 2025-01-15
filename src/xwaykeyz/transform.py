@@ -485,20 +485,10 @@ def transform_key(key, action, ctx: KeyContext):
         _output.send_key_action(key, action)
         return
 
-    combo = Combo(get_pressed_mods(), key)
+    # combo = Combo(get_pressed_mods(), key)
 
-    # Decompose CompositeModifiers in the Combo, only if necessary
-    if any(CompositeModifier.is_composite_modifier(mod) for mod in combo.modifiers):
-        new_modifiers = OrderedSet()
-        for modifier in combo.modifiers:
-            composite_mod: CompositeModifier = CompositeModifier.get_composite(modifier)
-            if composite_mod:
-                new_modifiers.update(composite_mod.member_keys)
-            else:
-                new_modifiers.add(modifier)
-        debug(f"Decomposed composite modifier: {modifier} -> \n"
-                f"    {composite_mod.member_keys}")
-        combo = Combo(new_modifiers, combo.key)
+    # Create the Combo object with with composite modifiers expanded (if necessary)
+    combo = Combo(CompositeModifier.expand_composite_mods(get_pressed_mods()), key)
 
     if _active_keymaps is escape_next_key:
         debug(f"Escape key: {combo} => {key}")
