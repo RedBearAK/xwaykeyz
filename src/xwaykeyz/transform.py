@@ -512,8 +512,7 @@ def transform_key(key, action, ctx: KeyContext):
             continue
 
         if logger.VERBOSE:
-            # log_combo_context(combo, ctx, keymap, _active_keymaps)
-            log_combo_context(expanded_combo, ctx, keymap, _active_keymaps)
+            log_combo_context(combo, ctx, keymap, _active_keymaps)
 
         held = get_pressed_states()
         for keystate in held:
