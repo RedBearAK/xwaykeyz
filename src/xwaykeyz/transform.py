@@ -486,9 +486,15 @@ def transform_key(key, action, ctx: KeyContext):
         return
 
     # combo = Combo(get_pressed_mods(), key)
+    _pressed_mods = get_pressed_mods()
+    combo = Combo(_pressed_mods, key)
 
-    # Create the Combo object with with composite modifiers expanded (if necessary)
-    combo = Combo(CompositeModifier.expand_composite_mods(get_pressed_mods()), key)
+    # Create a Combo object with with composite modifiers expanded (if necessary)
+    expanded_combo = Combo(CompositeModifier.expand_composite_mods(_pressed_mods), key)
+
+    if combo != expanded_combo:
+        debug(f"Original combo modifiers: {combo.modifiers}")
+        debug(f"Expanded combo modifiers: {expanded_combo.modifiers}")
 
     if _active_keymaps is escape_next_key:
         debug(f"Escape key: {combo} => {key}")
@@ -506,18 +512,20 @@ def transform_key(key, action, ctx: KeyContext):
             continue
 
         if logger.VERBOSE:
-            log_combo_context(combo, ctx, keymap, _active_keymaps)
+            # log_combo_context(combo, ctx, keymap, _active_keymaps)
+            log_combo_context(expanded_combo, ctx, keymap, _active_keymaps)
 
         held = get_pressed_states()
-        for ks in held:
+        for keystate in held:
             # if we are triggering a momentary on the output we can mark ourselves
             # spent, but if the key is already asserted on the output then we cannot
             # count it as spent and must hold it so that it's release later will
             # trigger the release on the output
-            if not _output.is_mod_pressed(ks.key):
-                ks.spent = True
+            if not _output.is_mod_pressed(keystate.key):
+                keystate.spent = True
         debug("spent modifiers", [_.key for _ in held if _.spent])
-        reset_mode = handle_commands(keymap[combo], key, action, ctx, combo)
+        # reset_mode = handle_commands(keymap[combo], key, action, ctx, combo)
+        reset_mode = handle_commands(keymap[combo], key, action, ctx, expanded_combo)
         if reset_mode:
             _active_keymaps = None
         return
