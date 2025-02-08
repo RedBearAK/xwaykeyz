@@ -61,27 +61,6 @@ class Devices:
         
         print()
 
-    # @staticmethod
-    # def print_list():
-    #     devices = Devices.all()
-    #     device_format = "{1.path:<20} {1.name:<35} {1.phys}"
-    #     device_lines = [
-    #         device_format.format(n, d) for n, d in enumerate(devices)
-    #     ]
-    #     header_len = max([20 + 35 + 3 + len(x.phys) for x in devices])
-    #     print("-" * header_len)
-    #     print("{:<20} {:<35} {}".format("Device", "Name", "Phys"))
-    #     print("-" * header_len)
-    #     for i, line in enumerate(device_lines):
-    #         dev = devices[i]
-    #         if len(dev.name) > 35:
-    #             fmt = "{1.path:<20} {1.name:<35}"
-    #             print(fmt.format(None, dev))
-    #             print(" " * 57 + dev.phys)
-    #         else:
-    #             print(line)
-    #     print("")
-
 
 class DeviceGrabError(IOError):
     pass
