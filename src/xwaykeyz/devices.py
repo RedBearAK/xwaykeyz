@@ -34,7 +34,7 @@ class Devices:
     @staticmethod
     def print_list():
         devices = Devices.all()
-        device_format = "{1.fn:<20} {1.name:<35} {1.phys}"
+        device_format = "{1.path:<20} {1.name:<35} {1.phys}"
         device_lines = [
             device_format.format(n, d) for n, d in enumerate(devices)
         ]
@@ -45,7 +45,7 @@ class Devices:
         for i, line in enumerate(device_lines):
             dev = devices[i]
             if len(dev.name) > 35:
-                fmt = "{1.fn:<20} {1.name:<35}"
+                fmt = "{1.path:<20} {1.name:<35}"
                 print(fmt.format(None, dev))
                 print(" " * 57 + dev.phys)
             else:
@@ -84,7 +84,7 @@ class DeviceRegistry:
             self.grab(device)
 
     def grab(self, device: InputDevice):
-        info(f"Grabbing '{device.name}' ({device.fn})", ctx="+K")
+        info(f"Grabbing '{device.name}' ({device.path})", ctx="+K")
         self._loop.add_reader(device, self._input_cb, device)
         self._devices.append(device)
         tries                   = 9
@@ -95,15 +95,15 @@ class DeviceRegistry:
             try:
                 sleep(delay)
                 device.grab()
-                info(f"Successfully grabbed '{device.name}' ({device.fn})", ctx="+K")
+                info(f"Successfully grabbed '{device.name}' ({device.path})", ctx="+K")
                 return
             except OSError as err:      # OSError also inherits/catches PermissionError and IOError
-                error(f"{err.__class__.__name__} grabbing '{device.name}' ({device.fn})")
+                error(f"{err.__class__.__name__} grabbing '{device.name}' ({device.path})")
                 error(f"Grab attempt {loop_cnt} of {tries}. The error was:\n\t{err}")
             loop_cnt           += 1
             delay               = min(delay * 2, delay_max)   # exponential backoff strategy
         error(f"Device grab was tried {tries} times and failed. Maybe, another instance is running?")
-        error(f"Continuing without device: '{device.name}' ({device.fn})")
+        error(f"Continuing without device: '{device.name}' ({device.path})")
 
     def ungrab(self, device: InputDevice):
         info(f"Ungrabbing: '{device.name}' (removed)", ctx="-K")
@@ -117,7 +117,7 @@ class DeviceRegistry:
     def ungrab_by_filename(self, filename):
         for device in self._devices:
             try:
-                if device.fn == filename:
+                if device.path == filename:
                     info(f"Ungrabbing: '{device.name}' (removed)", ctx="-K")
                     self._loop.remove_reader(device)
                     self._devices.remove(device)
@@ -156,7 +156,7 @@ class DeviceFilter:
         # picks up keyboard-ish devices.
         if self.matches:
             for match in self.matches:
-                if device.fn == match or device.name == match:
+                if device.path == match or device.name == match:
                     return True
             return False
 
