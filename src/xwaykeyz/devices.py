@@ -34,7 +34,7 @@ class Devices:
     @staticmethod
     def print_list():
         devices = Devices.all()
-        device_format = "{1.fn:<20} {1.name:<35} {1.phys}"
+        device_format = "{1.path:<20} {1.name:<35} {1.phys}"
         device_lines = [
             device_format.format(n, d) for n, d in enumerate(devices)
         ]
@@ -45,7 +45,7 @@ class Devices:
         for i, line in enumerate(device_lines):
             dev = devices[i]
             if len(dev.name) > 35:
-                fmt = "{1.fn:<20} {1.name:<35}"
+                fmt = "{1.path:<20} {1.name:<35}"
                 print(fmt.format(None, dev))
                 print(" " * 57 + dev.phys)
             else:
