@@ -22,7 +22,7 @@ This project was forked from [`keyszer`](https://github.com/joshgoebel/keyszer),
 
 Most of the references in this README to `keyszer` will be updated at some point to be more relevant for `xwaykeyz`. 
 
-Feel free to pronounce `xwaykeyz` however you want: Ex-Way-Keys, Sway-Keys, or Zway-Keyzzzzzz... 
+Feel free to pronounce `xwaykeyz` however you want: Ex-Way-Keys, Sway-Keys, or Zway-Keyzzzzzz... (Or maybe Chewy-Keyz?!)
 
 ### How does it work?
 
@@ -637,11 +637,6 @@ _If you could shed some light on this, please [get in touch](https://github.com/
 
 Not at the moment, perhaps never.  If you're an expert on the BSD kernel's input layers please
 [join the discussion](https://github.com/RedBearAK/xwaykeyz/issues/46).  I'm at the very least open to the discussion to find out if this is possible, a good idea, etc...
-
-
-**Does this work with Wayland?**
-
-[Not yet.](https://github.com/RedBearAK/xwaykeyz/issues/27)  This is desires but seems impossible at the moment until there is a standardized system to *quickly and easily* determine the app/window that has input focus on Wayland, just like we do so easily on X11.
 
 
 **Is keyszer compatible with [Kinto.sh](https://github.com/rbreaves/kinto)?**
