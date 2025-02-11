@@ -182,8 +182,8 @@ def environ_api(*, session_type='x11', wl_compositor=None, wl_desktop_env=None):
     if provided_environment_tup not in supported_environments:
         error(
             f'Unsupported environment: '
-            f"\n\tSession type:   '{session_type}'"
-            f"\n\tWayland comp:   '{wl_compositor}'"
+            f"\n\tSession type    = '{session_type}'"
+            f"\n\tWayland comp    = '{wl_compositor}'"
             f"\n")
         debug(f"Supported environments: ('session_type', 'desktop_env')\n\t" +
                 '\n\t'.join(ppf(item) for item in supported_environments) + '\n')
@@ -195,8 +195,8 @@ def environ_api(*, session_type='x11', wl_compositor=None, wl_desktop_env=None):
     })
     debug(
         f"ENVIRON API: "
-        f"\n\tSession type:   '{session_type}'"
-        f"\n\tWayland comp:   '{wl_compositor}'"
+        f"\n\tSession type    = '{session_type}'"
+        f"\n\tWayland comp    = '{wl_compositor}'"
         f"\n")
 
 
