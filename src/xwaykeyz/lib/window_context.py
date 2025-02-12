@@ -103,9 +103,9 @@ class Example_WindowContext(WindowContextProviderInterface):
 
     @classmethod
     def get_supported_environments(cls):
-        """This class supports the [Example environment] on [session type]"""
+        """This class supports the [example environment] on [session type]"""
         return [
-            ('wayland', 'Example_Environment_ID'),
+            ('wayland', 'example-environment'),
         ]
 
     def get_window_context(self):
