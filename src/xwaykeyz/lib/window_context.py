@@ -103,8 +103,10 @@ class Example_WindowContext(WindowContextProviderInterface):
 
     @classmethod
     def get_supported_environments(cls):
-        """This class supports the [Example environment] on [session type]"""
-        return [('wayland', 'Example_Environment_ID')]
+        """This class supports the [example environment] on [session type]"""
+        return [
+            ('wayland', 'example-environment'),
+        ]
 
     def get_window_context(self):
         """Return window context to KeyContext"""
@@ -244,6 +246,7 @@ class Wl_COSMIC_WindowContext(WindowContextProviderInterface):
         to the Toshy COSMIC D-Bus service at 'org.toshy.Cosmic'. 
         """
         return [
+            ('wayland', 'cosmic-comp'),
             ('wayland', 'cosmic'),
         ]
 
@@ -320,17 +323,20 @@ class Wl_Wlroots_WindowContext(WindowContextProviderInterface):
         interface is available to bind to in the registry.
         """
         return [
-
             # There's no actual "wlroots" probably, it's generic. Leave at top of list.
             ('wayland', 'wlroots'),
-
             # Specific DEs/WMs that should work with "wlroots" provider (list may get long):
             ('wayland', 'hypr'),
             ('wayland', 'hyprland'),
+            ('wayland', 'labwc'),
+            ('wayland', 'miracle-wm'),
+            ('wayland', 'miriway'),
+            ('wayland', 'miriway-shell'),    # actual process name for 'miriway' compositor?
             ('wayland', 'niri'),
             ('wayland', 'qtile'),
+            ('wayland', 'river'),
             ('wayland', 'sway'),
-
+            ('wayland', 'wayfire'),
         ]
 
     def get_window_context(self):
@@ -540,12 +546,11 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
         return self.get_active_wdw_ctx_hyprpy()
 
 
-class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
-    """Window context provider object for Wayland+KDE_Plasma environments"""
+class Wl_KWin_WindowContext(WindowContextProviderInterface):
+    """Window context provider object for kwin_wayland environments, such
+    as KDE Plasma, LXQt and other DEs that can use kwin_wayland."""
 
     def __init__(self):
-        # import time
-        # import dbus
         from dbus.exceptions import DBusException
 
         self.DBusException      = DBusException
@@ -556,6 +561,7 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
         self.res_name           = None
 
         # Renamed the D-Bus object/path specifically for Plasma (there are others, like Wlroots)
+        # TODO: Rename to reference KWin instead of Plasma? Other DEs can use kwin_wayland.
         self.toshy_dbus_obj     = 'org.toshy.Plasma'
         self.toshy_dbus_path    = '/org/toshy/Plasma'
 
@@ -567,15 +573,16 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
                                                         self.toshy_dbus_obj)
                 break
             except self.DBusException as dbus_error:
-                error(f'Error getting Toshy KDE D-Bus service interface.\n\t{dbus_error}')
+                error(f'Error getting Toshy KWIN D-Bus service interface.\n\t{dbus_error}')
             time.sleep(3)
 
     @classmethod
     def get_supported_environments(cls):
-        # This class supports the KDE Plasma environment on Wayland
+        # This class supports the kwin_wayland environment (KDE Plasma, LXQt, etc.)
         return [
+            ('wayland', 'kwin_wayland'),
+            ('wayland', 'plasma'),
             ('wayland', 'kde'),
-            ('wayland', 'plasma')
         ]
 
     def get_window_context(self):
@@ -587,21 +594,21 @@ class Wl_KDE_Plasma_WindowContext(WindowContextProviderInterface):
             # Convert to native Python dict type from 'dbus.Dictionary()' type
             window_info_dct     = dict(self.iface_toshy_svc.GetActiveWindow())
         except self.DBusException as dbus_error:
-            error(f'Toshy KDE D-Bus service interface stale?:\n\t{dbus_error}')
-            error(f'Trying to refresh Toshy KDE D-Bus service interface...')
+            error(f'Toshy KWIN D-Bus service interface stale?:\n\t{dbus_error}')
+            error(f'Trying to refresh Toshy KWIN D-Bus service interface...')
             try:
                 self.proxy_toshy_svc = self.session_bus.get_object( self.toshy_dbus_obj,
                                                                     self.toshy_dbus_path)
                 self.iface_toshy_svc = dbus.Interface(  self.proxy_toshy_svc,
                                                         self.toshy_dbus_obj)
             except self.DBusException as dbus_error:
-                error(f'Error refreshing Toshy KDE D-Bus service interface.\n\t{dbus_error}')
+                error(f'Error refreshing Toshy KWIN D-Bus service interface.\n\t{dbus_error}')
             try:
                 # Convert to native Python dict type from 'dbus.Dictionary()' type
                 window_info_dct     = dict(self.iface_toshy_svc.GetActiveWindow())
-                debug(f'Toshy KDE D-Bus service interface restored!')
+                debug(f'Toshy KWIN D-Bus service interface restored!')
             except self.DBusException as dbus_error: 
-                debug(f'Error returned from Toshy KDE D-Bus service:\n\t{dbus_error}')
+                debug(f'Error returned from Toshy KWIN D-Bus service:\n\t{dbus_error}')
                 return NO_CONTEXT_WAS_ERROR
 
         # native_dict = {str(key): str(value) for key, value in dbus_dict.items()}
@@ -642,7 +649,9 @@ class Wl_Cinnamon_WindowContext(WindowContextProviderInterface):
     @classmethod
     def get_supported_environments(cls):
         # This class supports the Cinnamon environment on Wayland
-        return [('wayland', 'cinnamon')]
+        return [
+            ('wayland', 'cinnamon')
+        ]
 
     def get_window_context(self):
         """
@@ -705,7 +714,10 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
     @classmethod
     def get_supported_environments(cls):
         # This class supports the GNOME environment on Wayland
-        return [('wayland', 'gnome')]
+        return [
+            ('wayland', 'gnome-shell'),
+            ('wayland', 'gnome'),
+        ]
 
     def get_window_context(self):
         """
@@ -856,7 +868,9 @@ class Xorg_WindowContext(WindowContextProviderInterface):
     @classmethod
     def get_supported_environments(cls):
         # This class supports any desktop environment in X11/Xorg sessions
-        return [('x11', None)]
+        return [
+            ('x11', None),
+        ]
 
     def get_window_context(self):
         """

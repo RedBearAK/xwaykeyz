@@ -323,10 +323,10 @@ def find_keystate_or_new(inkey, action):
 
 
 session_type    = _ENVIRON['session_type']
-wl_desktop_env  = _ENVIRON['wl_desktop_env']
+wl_compositor   = _ENVIRON['wl_compositor']
 
 from .lib.window_context import WindowContextProvider
-window_context = WindowContextProvider(session_type, wl_desktop_env)
+window_context = WindowContextProvider(session_type, wl_compositor)
 
 ignore_repeating_keys = _REPEATING_KEYS['ignore_repeating_keys']
 

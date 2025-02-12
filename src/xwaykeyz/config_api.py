@@ -56,8 +56,9 @@ _DEVICE_ARGS: Dict[str, str] = {
 # Defaults are set here so that X11/Xorg environments keep 
 # working without needing to use API in config file.
 _ENVIRON = {
-        'session_type'  : 'x11',
-        'wl_desktop_env': None
+        'session_type'  :   'x11',
+        'wl_compositor':    None,
+        'wl_desktop_env':   None,
 }
 
 
@@ -135,26 +136,35 @@ def get_all_supported_environments():
     return supported_environments
 
 
-def environ_api(session_type='x11', wl_desktop_env=None):
+def environ_api(*, session_type='x11', wl_compositor=None, wl_desktop_env=None):
     """
     API function to specify the session type (X11/Xorg or Wayland)
-    and if Wayland, which desktop environment, to be used to try 
+    and if Wayland, which Wayland compositor, to be used to try
     to instantiate the correct window context provider object.
 
     Default session type is 'x11' for backwards compatibility
-    with existing configs not using the API.
+    with existing configs that don't call this API to adapt to
+    Wayland environments.
+
+    The Wayland "desktop environment" argument should probably
+    be deprecated and eventually removed.
     """
 
-    # IMPORTANT: Reset wl_desktop_env to `None` if session is X11/Xorg
-    # Desktop is only relevant for Wayland session type
-    # Having anything other than `None` as desktop will not match X11/Xorg provider
-    # This matches environment ('x11', None) from X11/Xorg context provider
+    # ESSENTIAL GUARD CLAUSE: 
+    # Reset wl_compositor/wl_desktop_env to `None` if session is X11/Xorg.
+    # Compositor or desktop is only relevant for Wayland session type.
+    # Having anything besides `None` as Wayland compositor or desktop environment
+    # arguments will not match the X11/Xorg provider.
+    # This will match environment ('x11', None) from X11/Xorg context provider
     if session_type == 'x11':
+        wl_compositor = None
         wl_desktop_env = None
 
-    # disregard any capitalization mistakes by user
+    # Disregard any capitalization variations given by user
     if isinstance(session_type, str):
         session_type = session_type.casefold()
+    if isinstance(wl_compositor, str):
+        wl_compositor = wl_compositor.casefold()
     if isinstance(wl_desktop_env, str):
         wl_desktop_env = wl_desktop_env.casefold()
 
@@ -163,19 +173,31 @@ def environ_api(session_type='x11', wl_desktop_env=None):
     supported_environments = get_all_supported_environments()
 
     # Construct the environment tuple based on the provided values
-    provided_environment_tup = (session_type, wl_desktop_env)
+    if wl_compositor:
+        provided_environment_tup = (session_type, wl_compositor)
+    # For now, preseve the older argument if 'wl_compositor' argument not provided
+    if not wl_compositor:
+        provided_environment_tup = (session_type, wl_desktop_env)
 
     if provided_environment_tup not in supported_environments:
-        error(f'Unsupported environment: Session type: {session_type}, Desktop env: {wl_desktop_env}')
+        error(
+            f'Unsupported environment: '
+            f"\n\tSession type     = '{session_type}'"
+            f"\n\tWayland comp     = '{wl_compositor}'"
+            f"\n")
         debug(f"Supported environments: ('session_type', 'desktop_env')\n\t" +
                 '\n\t'.join(ppf(item) for item in supported_environments) + '\n')
         sys.exit(1)
 
     _ENVIRON.update({
-        'session_type': session_type,
-        'wl_desktop_env' : wl_desktop_env
+        'session_type':     session_type,
+        'wl_compositor':    wl_compositor,
     })
-    debug(f"ENVIRON: Session type: '{session_type}', Desktop env: '{wl_desktop_env}'")
+    debug(
+        f"ENVIRON API: "
+        f"\n\tSession type     = '{session_type}'"
+        f"\n\tWayland comp     = '{wl_compositor}'"
+        f"\n")
 
 
 # global dict of delay values used to mitigate Unicode entry sequence and macro or combo failures
