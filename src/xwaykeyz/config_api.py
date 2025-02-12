@@ -176,7 +176,7 @@ def environ_api(*, session_type='x11', wl_compositor=None, wl_desktop_env=None):
     if wl_compositor:
         provided_environment_tup = (session_type, wl_compositor)
     # For now, preseve the older argument if 'wl_compositor' argument not provided
-    if not wl_compositor:
+    else:
         provided_environment_tup = (session_type, wl_desktop_env)
 
     if provided_environment_tup not in supported_environments:
@@ -189,14 +189,22 @@ def environ_api(*, session_type='x11', wl_compositor=None, wl_desktop_env=None):
                 '\n\t'.join(ppf(item) for item in supported_environments) + '\n')
         sys.exit(1)
 
-    _ENVIRON.update({
-        'session_type':     session_type,
-        'wl_compositor':    wl_compositor,
-    })
+    if wl_compositor:
+        _ENVIRON.update({
+            'session_type':     session_type,
+            'wl_compositor':    wl_compositor,
+        })
+    else:
+        _ENVIRON.update({
+            'session_type':     session_type,
+            'wl_compositor':    wl_desktop_env,
+        })
+
+    _wl_wm_or_de = wl_compositor if wl_compositor else wl_desktop_env
     debug(
         f"ENVIRON API: "
         f"\n\tSession type     = '{session_type}'"
-        f"\n\tWindow manager   = '{wl_compositor}'"
+        f"\n\tWindow manager   = '{_wl_wm_or_de}'"
         f"\n")
 
 
