@@ -146,8 +146,9 @@ def environ_api(*, session_type='x11', wl_compositor=None, wl_desktop_env=None):
     with existing configs that don't call this API to adapt to
     Wayland environments.
 
-    The Wayland "desktop environment" argument should probably
-    be deprecated and eventually removed.
+    The Wayland "desktop environment" argument is deprecated and
+    may be removed at some point if no other use is found for it.
+    (Deprecated as of 2025-02-11. TODO: Remove by 2027-02-15.)
     """
 
     # ESSENTIAL GUARD CLAUSE: 
@@ -180,12 +181,19 @@ def environ_api(*, session_type='x11', wl_compositor=None, wl_desktop_env=None):
         provided_environment_tup = (session_type, wl_desktop_env)
 
     if provided_environment_tup not in supported_environments:
-        error(
-            f'Unsupported environment: '
-            f"\n\tSession type     = '{session_type}'"
-            f"\n\tWindow manager   = '{wl_compositor}'"
-            f"\n")
-        debug(f"Supported environments: ('session_type', 'desktop_env')\n\t" +
+        if wl_compositor:
+            error(
+                f'Unsupported environment: '
+                f"\n\tSession type     = '{session_type}'"
+                f"\n\tWindow manager   = '{wl_compositor}'"
+                f"\n")
+        else:
+            error(
+                f'Unsupported environment: '
+                f"\n\tSession type     = '{session_type}'"
+                f"\n\tDesktop env      = '{wl_desktop_env}' (DEPRECATED, use window manager)"
+                f"\n")
+        debug(f"Supported environments: ('session_type', 'window_mgr')\n\t" +
                 '\n\t'.join(ppf(item) for item in supported_environments) + '\n')
         sys.exit(1)
 
@@ -195,17 +203,24 @@ def environ_api(*, session_type='x11', wl_compositor=None, wl_desktop_env=None):
             'wl_compositor':    wl_compositor,
         })
     else:
+        # transform.py uses only 'wl_compositor' now, but this preserves 'wl_desktop_env' usage
         _ENVIRON.update({
             'session_type':     session_type,
             'wl_compositor':    wl_desktop_env,
         })
 
-    _wl_wm_or_de = wl_compositor if wl_compositor else wl_desktop_env
-    debug(
-        f"ENVIRON API: "
-        f"\n\tSession type     = '{session_type}'"
-        f"\n\tWindow manager   = '{_wl_wm_or_de}'"
-        f"\n")
+    if wl_compositor:
+        debug(
+            f"ENVIRON API: "
+            f"\n\tSession type     = '{session_type}'"
+            f"\n\tWindow manager   = '{wl_compositor}'"
+            f"\n")
+    else:
+        debug(
+            f"ENVIRON API: "
+            f"\n\tSession type     = '{session_type}'"
+            f"\n\tDesktop env      = '{wl_desktop_env}' (DEPRECATED, use window manager)"
+            f"\n")
 
 
 # global dict of delay values used to mitigate Unicode entry sequence and macro or combo failures
