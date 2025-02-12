@@ -37,26 +37,37 @@ class WindowContextProviderInterface(abc.ABC):
     def get_supported_environments(cls):
         """
         This method should return a list of environments that the subclass 
-        supports, in the form [('session_type', 'desktop_environment')].
+        supports, in the form [('session_type', 'window_manager')]. In Wayland
+        the window manager is often referred to as the Wayland compositor.
+        For this reason the environ_api function has the `wl_compositor`
+        argument, to accept the detected window manager process name and
+        target the window context provider that advertises a matching
+        environment tuple.
 
-        Each environment should be represented as a tuple. For example, if 
-        a subclass supports the session types 'x11' and 'wayland', regardless
-        of the desktop environment (this is unlikely for Wayland), this method 
-        should return [('x11', None), ('wayland', None)]. The Xorg provider
-        subclass returns [('x11', None)], meaning it supports any Linux desktop
-        environment on an X11/Xorg session. Wayland methods are usually going
-        to be specific to a certain compositor, until more universal standards 
-        evolve. 
+        Each environment should be represented as a tuple. For example, the
+        X11/Xorg provider subclass returns:
 
-        If an environment is specific to a certain desktop environment, the 
-        desktop environment should be included in the tuple. For example, if 
+            [('x11', None)]
+
+        ... meaning it supports any Linux X11/Xorg window manager. 
+
+        Wayland methods are usually going to be specific to a certain compositor,
+        until more universal standards evolve. (This may never happen.)
+
+        If an environment is specific to a certain window manager, the 
+        window manager should be included in the tuple. For example, if 
         a subclass supports the 'wayland' session specifically only for the 
-        'gnome' desktop, this method should return [('wayland', 'gnome')].
+        'gnome-shell' window manager, this method should return:
 
-        At this time only 'x11' and 'wayland' session types are in common use.
+            [('wayland', 'gnome-shell')].
+
+        At this time only 'x11' and 'wayland' session types are in common use. It
+        is necessary to note the session type due to many window managers retaining
+        the same name from X11/Xorg to their Wayland counterpart, while requiring
+        completely different window context methods.
 
         :returns: A list of tuples, each representing an environment combination
-        of session type and desktop environment supported by the subclass.
+        of session type and window manager supported by the subclass.
         """
 
     @abc.abstractmethod
@@ -154,6 +165,9 @@ class Wl_Pantheon_WindowContext(WindowContextProviderInterface):
         the Pantheon Gala D-Bus interface.
         """
         return [
+            # Window manager is 'gala'
+            ('wayland', 'gala'),
+            # TODO: Remove deprecated 'pantheon' desktop environment entry by mid-2027?
             ('wayland', 'pantheon'),
         ]
 
@@ -246,7 +260,9 @@ class Wl_COSMIC_WindowContext(WindowContextProviderInterface):
         to the Toshy COSMIC D-Bus service at 'org.toshy.Cosmic'. 
         """
         return [
+            # Window manager is 'cosmic-comp'
             ('wayland', 'cosmic-comp'),
+            # TODO: Remove deprecated 'cosmic' desktop environment entry by mid-2027?
             ('wayland', 'cosmic'),
         ]
 
@@ -580,7 +596,9 @@ class Wl_KWin_WindowContext(WindowContextProviderInterface):
     def get_supported_environments(cls):
         # This class supports the kwin_wayland environment (KDE Plasma, LXQt, etc.)
         return [
+            # Window manager is 'kwin_wayland'
             ('wayland', 'kwin_wayland'),
+            # TODO: Remove deprecated 'plasma' and 'kde' desktop environment entries by mid-2027?
             ('wayland', 'plasma'),
             ('wayland', 'kde'),
         ]
@@ -715,7 +733,9 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
     def get_supported_environments(cls):
         # This class supports the GNOME environment on Wayland
         return [
+            # Window manager is 'gnome-shell'
             ('wayland', 'gnome-shell'),
+            # TODO: Remove deprecated 'gnome' desktop environment entry by mid-2027? 
             ('wayland', 'gnome'),
         ]
 
@@ -867,7 +887,7 @@ class Xorg_WindowContext(WindowContextProviderInterface):
 
     @classmethod
     def get_supported_environments(cls):
-        # This class supports any desktop environment in X11/Xorg sessions
+        # This class supports any X11/Xorg window manager
         return [
             ('x11', None),
         ]
