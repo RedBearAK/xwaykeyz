@@ -151,34 +151,46 @@ def environ_api(*, session_type='x11', wl_compositor=None, wl_desktop_env=None):
     (Deprecated as of 2025-02-11. TODO: Remove by 2027-02-15.)
     """
 
-    # ESSENTIAL GUARD CLAUSE: 
-    # Reset wl_compositor/wl_desktop_env to `None` if session is X11/Xorg.
-    # Compositor or desktop is only relevant for Wayland session type.
-    # Having anything besides `None` as Wayland compositor or desktop environment
-    # arguments will not match the X11/Xorg provider.
-    # This will match environment ('x11', None) from X11/Xorg context provider
-    if session_type == 'x11':
-        wl_compositor = None
-        wl_desktop_env = None
+    # Disregard any capitalization variations given in manual usage
+    if isinstance(session_type, str):       session_type        = session_type.casefold()
+    if isinstance(wl_compositor, str):      wl_compositor       = wl_compositor.casefold()
+    if isinstance(wl_desktop_env, str):     wl_desktop_env      = wl_desktop_env.casefold()
 
-    # Disregard any capitalization variations given by user
-    if isinstance(session_type, str):
-        session_type = session_type.casefold()
-    if isinstance(wl_compositor, str):
-        wl_compositor = wl_compositor.casefold()
-    if isinstance(wl_desktop_env, str):
-        wl_desktop_env = wl_desktop_env.casefold()
+    # # Store the original argument values in "private" shadow copies
+    # _wl_compositor              = wl_compositor
+    # _wl_desktop_env             = wl_desktop_env
+
+    # # ESSENTIAL GUARD CLAUSE: 
+    # # Reset wl_compositor/wl_desktop_env to `None` if session is X11/Xorg.
+    # # Compositor or desktop is only relevant for Wayland session type.
+    # # Having anything besides `None` as Wayland compositor or desktop environment
+    # # arguments will not match the X11/Xorg provider.
+    # # This will match environment ('x11', None) from X11/Xorg context provider
+    # if session_type == 'x11':
+    #     wl_compositor           = None
+    #     wl_desktop_env          = None
 
     # Get the currently supported environments currently being 
     # advertized by provider classes in the window context module.
     supported_environments = get_all_supported_environments()
 
-    # Construct the environment tuple based on the provided values
-    if wl_compositor:
+    # Construct the environment tuple based on the provided values,
+    # screening first for 'x11' to match the window context provider
+    # tuple of ('x11', None).
+    if session_type == 'x11':
+        provided_environment_tup = (session_type, None)
+    elif wl_compositor:
         provided_environment_tup = (session_type, wl_compositor)
-    # For now, preseve the older argument if 'wl_compositor' argument not provided
-    else:
+    # Preserve usage of the older argument if 'wl_compositor' argument not provided
+    elif wl_desktop_env:
         provided_environment_tup = (session_type, wl_desktop_env)
+    else:
+        error(  f"Logic error, or bad argument values?"
+                f"\n\t{session_type     = }"
+                f"\n\t{wl_compositor    = }"
+                f"\n\t{wl_desktop_env   = }"
+                f"\n")
+        sys.exit(1)
 
     if provided_environment_tup not in supported_environments:
         if wl_compositor:
@@ -191,13 +203,19 @@ def environ_api(*, session_type='x11', wl_compositor=None, wl_desktop_env=None):
             error(
                 f'Unsupported environment: '
                 f"\n\tSession type     = '{session_type}'"
-                f"\n\tDesktop env      = '{wl_desktop_env}' (DEPRECATED, use window manager)"
+                f"\n\tDesktop env      = '{wl_desktop_env}' (DEPRECATED, use 'wl_compositor' arg)"
                 f"\n")
         debug(f"Supported environments: ('session_type', 'window_mgr')\n\t" +
                 '\n\t'.join(ppf(item) for item in supported_environments) + '\n')
         sys.exit(1)
 
-    if wl_compositor:
+    if session_type == 'x11':
+        # For 'x11' case, window context provider tuple to match is ('x11', None)
+        _ENVIRON.update({
+            'session_type':     session_type,
+            'wl_compositor':    None,
+        })
+    elif wl_compositor:
         _ENVIRON.update({
             'session_type':     session_type,
             'wl_compositor':    wl_compositor,
@@ -219,7 +237,7 @@ def environ_api(*, session_type='x11', wl_compositor=None, wl_desktop_env=None):
         debug(
             f"ENVIRON API: "
             f"\n\tSession type     = '{session_type}'"
-            f"\n\tDesktop env      = '{wl_desktop_env}' (DEPRECATED, use window manager)"
+            f"\n\tDesktop env      = '{wl_desktop_env}' (DEPRECATED, use 'wl_compositor' arg)"
             f"\n")
 
 
