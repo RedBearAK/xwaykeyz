@@ -185,6 +185,7 @@ def environ_api(*, session_type='x11', wl_compositor=None, wl_desktop_env=None):
     elif wl_desktop_env:
         provided_environment_tup = (session_type, wl_desktop_env)
     else:
+        print()
         error(  f"Logic error, or bad argument values?"
                 f"\n\t{session_type     = }"
                 f"\n\t{wl_compositor    = }"
@@ -194,12 +195,14 @@ def environ_api(*, session_type='x11', wl_compositor=None, wl_desktop_env=None):
 
     if provided_environment_tup not in supported_environments:
         if wl_compositor:
+            print()
             error(
                 f'Unsupported environment: '
                 f"\n\tSession type     = '{session_type}'"
                 f"\n\tWindow manager   = '{wl_compositor}'"
                 f"\n")
         else:
+            print()
             error(
                 f'Unsupported environment: '
                 f"\n\tSession type     = '{session_type}'"
@@ -228,12 +231,14 @@ def environ_api(*, session_type='x11', wl_compositor=None, wl_desktop_env=None):
         })
 
     if wl_compositor:
+        print()
         debug(
             f"ENVIRON API: "
             f"\n\tSession type     = '{session_type}'"
             f"\n\tWindow manager   = '{wl_compositor}'"
             f"\n")
     else:
+        print()
         debug(
             f"ENVIRON API: "
             f"\n\tSession type     = '{session_type}'"
