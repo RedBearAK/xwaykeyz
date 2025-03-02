@@ -89,9 +89,9 @@ Some progress has been made attempting to use `xkbcommon` to be able to change t
 - Support for several Wayland environments when installed via [Toshy](https://github.com/RedBearAK/toshy)
 - Without Toshy, `xwaykeyz` natively supports only:
     - **X11/Xorg sessions** (with any desktop environment/window manager)
-    - **Hyprland** - [via `hyprpy`]
-    - **Pantheon** - [via D-Bus queries to Gala WM]
-    - **sway** - [via `i3ipc`]
+    - **Hyprland** - _[via `hyprpy`, or the `wlroots` method]_
+    - **Pantheon** - _[via D-Bus queries to the Gala WM]_
+    - **sway** - _[via `i3ipc`, or the `wlroots` method]_
 - With Toshy, `xwaykeyz` can support:
     - **X11/Xorg sessions** (with any desktop environment/window manager)
     - **Cinnamon 6.0 or later** - _[uses Toshy custom shell extension]_
