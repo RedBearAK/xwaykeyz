@@ -75,9 +75,6 @@ def main_loop(arg_devices, device_watch):
         _sup = loop.create_task(supervisor())  # noqa: F841
         loop.add_signal_handler(signal.SIGINT, sig_int)
         loop.add_signal_handler(signal.SIGTERM, sig_term)
-        # Stop child processes from hanging around as zombies after terminating
-        # They get stuck waiting for acknowledgement from the parent process
-        loop.add_signal_handler(signal.SIGCHLD, signal.SIG_IGN)
         info("Ready to process input.")
         loop.run_forever()
     except DeviceGrabError:
