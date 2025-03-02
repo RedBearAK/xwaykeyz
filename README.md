@@ -88,25 +88,29 @@ Some progress has been made attempting to use `xkbcommon` to be able to change t
 
 - Support for several Wayland environments when installed via [Toshy](https://github.com/RedBearAK/toshy)
 - Without Toshy, `xwaykeyz` natively supports only:
-    - **X11/Xorg sessions** (with any desktop environment/window manager)
-    - **Hyprland** - [via `hyprpy`]
-    - **Pantheon** - [via D-Bus queries to Gala WM]
-    - **sway** - [via `i3ipc`]
-- With Toshy, `xwaykeyz` can support:
+
+    - **X11/Xorg sessions** _[works with any X window manager via `Xlib`]_
+    - **Hyprland** - _[via `hyprpy`, or the `wlroots` method]_
+    - **Pantheon** - _[via D-Bus queries to the Gala WM]_
+    - **Sway** - _[via `i3ipc`, or the `wlroots` method]_
+
+- With Toshy, `xwaykeyz` can support many more Wayland environments:
     - **X11/Xorg sessions** (with any desktop environment/window manager)
     - **Cinnamon 6.0 or later** - _[uses Toshy custom shell extension]_
     - **COSMIC desktop environment** - _[uses Toshy D-Bus service]_
     - **GNOME 3.38 or later** - _[needs 3rd-party shell extension]_
-    - **Hyprland** - _[via `hyprpy` or `wlroots` method]_
-    - **Niri** - _[via `wlroots` method]_
+    - **Hyprland** - _[via `hyprpy` or the `wlroots` method]_
+    - **Niri** - _[via the `wlroots` method]_
     - **Plasma 5 (KDE)** - _[uses Toshy KWin script and D-Bus service]_
     - **Plasma 6 (KDE)** - _[uses Toshy KWin script and D-Bus service]_
-    - **Qtile** - _[via `wlroots` method]_
-    - **sway** - _[via `i3ipc` or `wlroots` method]_
+    - **Qtile** - _[via the `wlroots` method]_
+    - **Sway** - _[via `i3ipc` or the `wlroots` method]_
     - **Wayland compositors with `zwlr_foreign_toplevel_manager_v1` interface**
         - See [Wiki article](https://github.com/RedBearAK/toshy/wiki/Wlroots-Based-Wayland-Compositors.md) on Toshy repo for usage of this method with unknown compositors that may be compatible
     - Full list and requirements kept updated in [Toshy README](https://github.com/RedBearAK/toshy#currently-working-desktop-environments-or-window-managers)
-- (fix) Negated high CPU usage while holding a key (by not processing "repeats")
+
+- (fix) Avoided high CPU usage while holding a key (by ignoring "repeats" by default)
+
 - (enh) Added API to specify devices from inside the config file (instead of CLI arg)
 
 
