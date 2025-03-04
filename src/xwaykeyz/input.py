@@ -19,6 +19,8 @@ from .models.action import Action
 from .models.key import Key
 from .transform import boot_config, dump_diagnostics, on_event
 
+import xwaykeyz.lib.logger as logger
+
 CONFIG = config_api
 
 
@@ -66,8 +68,8 @@ def wakeup_output():
         # Key.CAPSLOCK, Key.NUMLOCK
     ]
 
-    _verbose_state = copy(VERBOSE)
-    VERBOSE = False
+    _verbose_state = copy(logger.VERBOSE)
+    logger.VERBOSE = False
 
     # Generate press-release events for each modifier with proper timing
     for key in modifier_keys:
@@ -84,7 +86,7 @@ def wakeup_output():
     sync_event = InputEvent(0, 0, ecodes.EV_SYN, 0, 0)
     on_event(sync_event, dummy_device)
 
-    VERBOSE = _verbose_state
+    logger.VERBOSE = _verbose_state
 
 
 def main_loop(arg_devices, device_watch):
