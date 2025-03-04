@@ -11,6 +11,7 @@ from evdev.eventio import EventIO
 
 from . import config_api, transform
 from .devices import DeviceFilter, DeviceGrabError, DeviceRegistry
+from .lib.dummy_device import DummyDevice
 from .lib.logger import debug, error, info
 from .models.action import Action
 from .models.key import Key
@@ -47,10 +48,36 @@ def watch_dev_input():
 # one keystroke on a new device, so we need to give it something that
 # won't do any harm, but is still an actual keypress, hence shift.
 def wakeup_output():
-    down = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.PRESS)
-    up = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.RELEASE)
-    for ev in [down, up]:
-        on_event(ev, None)
+    # down = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.PRESS)
+    # up = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.RELEASE)
+    # for ev in [down, up]:
+    #     on_event(ev, None)
+
+    dummy_device = DummyDevice()
+
+    # List all modifier keys that should be reset at startup
+    modifier_keys = [
+        Key.LEFT_SHIFT, Key.RIGHT_SHIFT,
+        Key.LEFT_CTRL, Key.RIGHT_CTRL,
+        Key.LEFT_ALT, Key.RIGHT_ALT,
+        Key.LEFT_META, Key.RIGHT_META,
+        # Key.CAPSLOCK, Key.NUMLOCK
+    ]
+
+    # Generate press-release events for each modifier with proper timing
+    for key in modifier_keys:
+        # Down event with current timestamp
+        down = InputEvent(0, 0, ecodes.EV_KEY, key, Action.PRESS)
+        # Up event with slightly offset timestamp 
+        up = InputEvent(0, 0, ecodes.EV_KEY, key, Action.RELEASE)
+        
+        # Send both events with our dummy device for proper state tracking
+        on_event(down, dummy_device)
+        on_event(up, dummy_device)
+    
+    # Also send a sync event
+    sync_event = InputEvent(0, 0, ecodes.EV_SYN, 0, 0)
+    on_event(sync_event, dummy_device)
 
 
 def main_loop(arg_devices, device_watch):
