@@ -83,7 +83,10 @@ def is_sticky(key):
 def update_pressed_states(keystate: Keystate):
     # release
     if keystate.action == Action.RELEASE:
-        del _key_states[keystate.inkey]
+        try:
+            del _key_states[keystate.inkey]
+        except KeyError as e:
+            debug(f"Tried to release a key that was not in _key_states. KeyError avoided.")
 
     # press / add
     if keystate.inkey not in _key_states:
