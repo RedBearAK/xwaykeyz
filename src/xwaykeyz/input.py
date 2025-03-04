@@ -1,7 +1,8 @@
-import asyncio
 import signal
+import asyncio
 
 from asyncio import Task, TimerHandle
+from copy import copy
 from inotify_simple import INotify, flags
 from inotify_simple import Event as inotify_Event
 from sys import exit
@@ -65,7 +66,7 @@ def wakeup_output():
         # Key.CAPSLOCK, Key.NUMLOCK
     ]
 
-    _verbose_state = VERBOSE
+    _verbose_state = copy(VERBOSE)
     VERBOSE = False
 
     # Generate press-release events for each modifier with proper timing
