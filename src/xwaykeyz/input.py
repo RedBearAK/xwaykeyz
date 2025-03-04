@@ -1,5 +1,6 @@
 import asyncio
 import signal
+
 from asyncio import Task, TimerHandle
 from inotify_simple import INotify, flags
 from inotify_simple import Event as inotify_Event
@@ -12,7 +13,7 @@ from evdev.eventio import EventIO
 from . import config_api, transform
 from .devices import DeviceFilter, DeviceGrabError, DeviceRegistry
 from .lib.dummy_device import DummyDevice
-from .lib.logger import debug, error, info
+from .lib.logger import debug, error, info, VERBOSE
 from .models.action import Action
 from .models.key import Key
 from .transform import boot_config, dump_diagnostics, on_event
@@ -64,6 +65,9 @@ def wakeup_output():
         # Key.CAPSLOCK, Key.NUMLOCK
     ]
 
+    _verbose_state = VERBOSE
+    VERBOSE = False
+
     # Generate press-release events for each modifier with proper timing
     for key in modifier_keys:
         # Down event with current timestamp
@@ -78,6 +82,8 @@ def wakeup_output():
     # Also send a sync event
     sync_event = InputEvent(0, 0, ecodes.EV_SYN, 0, 0)
     on_event(sync_event, dummy_device)
+
+    VERBOSE = _verbose_state
 
 
 def main_loop(arg_devices, device_watch):
