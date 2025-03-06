@@ -53,6 +53,8 @@ def watch_dev_input():
 # one keystroke on a new device, so we need to give it something that
 # won't do any harm, but is still an actual keypress, hence shift.
 def wakeup_output():
+
+    # # This might have done something for xmodmap, but first mod press was always ignored in X11
     # down = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.PRESS)
     # up = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.RELEASE)
     # for ev in [down, up]:
@@ -64,14 +66,15 @@ def wakeup_output():
     # Keep the Shift key cycling events from appearing in the verbose logging at startup
     logger.VERBOSE = False
 
+    # Use a dummy device instead of 'None', cures X11 issue of first mod key press being ignored!
     dummy_device = DummyDevice()
     down = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.PRESS)
     up = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.RELEASE)
     for ev in [down, up]:
         on_event(ev, dummy_device)
-        sleep(0.01)     # Chill between press and release, and any subsequent key events after
+        sleep(0.01)         # Chill after press and release of Shift key
 
-    # Restore the user's setting for verbosity, whether True or False
+    # Restore the user's setting for verbosity, whether it was True or False
     logger.VERBOSE = _verbose_state
 
 
