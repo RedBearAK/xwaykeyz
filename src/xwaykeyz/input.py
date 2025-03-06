@@ -14,8 +14,8 @@ from evdev.eventio import EventIO
 
 from . import config_api, transform
 from .devices import DeviceFilter, DeviceGrabError, DeviceRegistry
-from .lib.dummy_device import DummyDevice
 from .lib import logger
+from .lib.dummy_device import DummyDevice
 from .lib.logger import debug, error, info
 from .models.action import Action
 from .models.key import Key
