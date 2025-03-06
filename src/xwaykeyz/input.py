@@ -1,6 +1,8 @@
-import asyncio
 import signal
+import asyncio
+
 from asyncio import Task, TimerHandle
+from copy import copy
 from inotify_simple import INotify, flags
 from inotify_simple import Event as inotify_Event
 from sys import exit
@@ -11,10 +13,13 @@ from evdev.eventio import EventIO
 
 from . import config_api, transform
 from .devices import DeviceFilter, DeviceGrabError, DeviceRegistry
+from .lib.dummy_device import DummyDevice
+from .lib import logger
 from .lib.logger import debug, error, info
 from .models.action import Action
 from .models.key import Key
 from .transform import boot_config, dump_diagnostics, on_event
+
 
 CONFIG = config_api
 
@@ -47,10 +52,114 @@ def watch_dev_input():
 # one keystroke on a new device, so we need to give it something that
 # won't do any harm, but is still an actual keypress, hence shift.
 def wakeup_output():
-    down = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.PRESS)
-    up = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.RELEASE)
-    for ev in [down, up]:
-        on_event(ev, None)
+    # down = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.PRESS)
+    # up = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.RELEASE)
+    # for ev in [down, up]:
+    #     on_event(ev, None)
+
+    dummy_device = DummyDevice()
+
+    # List all modifier keys that should be reset at startup
+    modifier_keys = [
+        Key.LEFT_SHIFT, Key.RIGHT_SHIFT,
+        Key.LEFT_CTRL, Key.RIGHT_CTRL,
+        Key.LEFT_ALT, Key.RIGHT_ALT,
+        Key.LEFT_META, Key.RIGHT_META,
+        # Key.CAPSLOCK, Key.NUMLOCK
+    ]
+
+    # List of all typical keyboard keys to reset
+    keys_to_reset = [
+        # Modifier keys
+        Key.LEFT_SHIFT, Key.RIGHT_SHIFT,
+        Key.LEFT_CTRL, Key.RIGHT_CTRL,
+        Key.LEFT_ALT, Key.RIGHT_ALT, 
+        Key.LEFT_META, Key.RIGHT_META,
+        Key.CAPSLOCK, Key.NUMLOCK, Key.SCROLLLOCK,
+        
+        # Function keys
+        Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6,
+        Key.F7, Key.F8, Key.F9, Key.F10, Key.F11, Key.F12,
+        
+        # Number row
+        Key.GRAVE, Key.KEY_1, Key.KEY_2, Key.KEY_3, Key.KEY_4, Key.KEY_5,
+        Key.KEY_6, Key.KEY_7, Key.KEY_8, Key.KEY_9, Key.KEY_0,
+        Key.MINUS, Key.EQUAL, Key.BACKSPACE,
+        
+        # Upper row
+        Key.TAB, Key.Q, Key.W, Key.E, Key.R, Key.T, Key.Y, Key.U, Key.I, Key.O, Key.P,
+        Key.LEFT_BRACE, Key.RIGHT_BRACE, Key.BACKSLASH,
+        
+        # Home row
+        Key.A, Key.S, Key.D, Key.F, Key.G, Key.H, Key.J, Key.K, Key.L,
+        Key.SEMICOLON, Key.APOSTROPHE, Key.ENTER,
+        
+        # Lower row
+        Key.Z, Key.X, Key.C, Key.V, Key.B, Key.N, Key.M,
+        Key.COMMA, Key.DOT, Key.SLASH,
+        
+        # Bottom row and space
+        Key.SPACE,
+        
+        # Navigation
+        Key.ESC, Key.INSERT, Key.DELETE,
+        Key.HOME, Key.END, Key.PAGE_UP, Key.PAGE_DOWN,
+        Key.UP, Key.DOWN, Key.LEFT, Key.RIGHT,
+        
+        # Numpad
+        Key.KP0, Key.KP1, Key.KP2, Key.KP3, Key.KP4,
+        Key.KP5, Key.KP6, Key.KP7, Key.KP8, Key.KP9,
+        Key.KPASTERISK, Key.KPMINUS, Key.KPPLUS, Key.KPDOT,
+        Key.KPSLASH, Key.KPENTER
+    ]
+
+    all_keys_to_reset = keys_to_reset + modifier_keys
+
+    _verbose_state = copy(logger.VERBOSE)                  # Store verbosity chosen by user
+    logger.VERBOSE = False                                 # Hide all the startup release events
+
+    # Progress bar configuration
+    bar_width = 20                                  # Total width of progress bar (inside brackets)
+    fill_char = '='                                 # Character used to show progress
+    empty_char = '.'                                # Character used to show remaining space
+
+    # Initialize progress bar for verbose mode
+    if _verbose_state:
+        print(f"(--) Clearing key states: [{empty_char * bar_width}]", end="", flush=True)
+        # Move cursor back to beginning of progress bar (after '[')
+        print("\b" * (bar_width + 1), end="", flush=True)
+
+    total_keys = len(all_keys_to_reset)
+    chars_filled = 0
+
+    # Generate release events for each key
+    for i, key in enumerate(all_keys_to_reset):
+        # Calculate current progress percentage
+        progress_pct = (i + 1) / total_keys
+
+        # Calculate how many fill characters should be shown by now
+        fill_needed = int(progress_pct * bar_width)
+
+        # Release event
+        up = InputEvent(0, 0, ecodes.EV_KEY, key, Action.RELEASE)
+        on_event(up, dummy_device)
+
+        # Update the progress bar
+        if _verbose_state and fill_needed > chars_filled:
+            fill_to_print = fill_needed - chars_filled
+            print(fill_char * fill_to_print, end="", flush=True)
+            chars_filled = fill_needed
+
+    # Send a sync event
+    sync_event = InputEvent(0, 0, ecodes.EV_SYN, 0, 0)
+    on_event(sync_event, dummy_device)
+
+    logger.VERBOSE = _verbose_state                        # Reset verbosity to what user wanted
+
+    # Complete the progress bar and show "Complete" message
+    if _verbose_state:
+        # Move cursor past the right bracket
+        print("\b" * -1 + "] Complete", flush=True)
 
 
 def main_loop(arg_devices, device_watch):
