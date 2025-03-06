@@ -1,9 +1,12 @@
-import asyncio
 import signal
+import asyncio
+
 from asyncio import Task, TimerHandle
+from copy import copy
 from inotify_simple import INotify, flags
 from inotify_simple import Event as inotify_Event
 from sys import exit
+from time import sleep
 from typing import List, Optional
 
 from evdev import InputDevice, InputEvent, ecodes
@@ -11,10 +14,13 @@ from evdev.eventio import EventIO
 
 from . import config_api, transform
 from .devices import DeviceFilter, DeviceGrabError, DeviceRegistry
+from .lib import logger
+from .lib.dummy_device import DummyDevice
 from .lib.logger import debug, error, info
 from .models.action import Action
 from .models.key import Key
 from .transform import boot_config, dump_diagnostics, on_event
+
 
 CONFIG = config_api
 
@@ -47,10 +53,29 @@ def watch_dev_input():
 # one keystroke on a new device, so we need to give it something that
 # won't do any harm, but is still an actual keypress, hence shift.
 def wakeup_output():
+
+    # # This might have done something for xmodmap, but first mod press was always ignored in X11
+    # down = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.PRESS)
+    # up = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.RELEASE)
+    # for ev in [down, up]:
+    #     on_event(ev, None)
+
+    # Store the user's current setting for verbosity
+    _verbose_state = copy(logger.VERBOSE)
+
+    # Keep the Shift key cycling events from appearing in the verbose logging at startup
+    logger.VERBOSE = False
+
+    # Use a dummy device instead of 'None', cures X11 issue of first mod key press being ignored!
+    dummy_device = DummyDevice()
     down = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.PRESS)
     up = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.RELEASE)
     for ev in [down, up]:
-        on_event(ev, None)
+        on_event(ev, dummy_device)
+        sleep(0.01)         # Chill after press and release of Shift key
+
+    # Restore the user's setting for verbosity, whether it was True or False
+    logger.VERBOSE = _verbose_state
 
 
 def main_loop(arg_devices, device_watch):
