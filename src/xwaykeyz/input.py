@@ -58,12 +58,21 @@ def wakeup_output():
     # for ev in [down, up]:
     #     on_event(ev, None)
 
+    # Store the user's current setting for verbosity
+    _verbose_state = copy(logger.VERBOSE)
+
+    # Keep the Shift key cycling events from appearing in the verbose logging at startup
+    logger.VERBOSE = False
+
     dummy_device = DummyDevice()
     down = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.PRESS)
     up = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.RELEASE)
     for ev in [down, up]:
         on_event(ev, dummy_device)
         sleep(0.01)     # Chill between press and release, and any subsequent key events after
+
+    # Restore the user's setting for verbosity, whether True or False
+    logger.VERBOSE = _verbose_state
 
 
 def main_loop(arg_devices, device_watch):
