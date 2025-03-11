@@ -1,14 +1,54 @@
+import os
+
 from asyncio import AbstractEventLoop
 from evdev import InputDevice, list_devices
 from time import sleep
 from typing import List
 
-from .lib.logger import error, info
+from .lib.logger import debug, error, info
 from .models.key import Key
 from .output import VIRT_DEVICE_PREFIX
 
 QWERTY = [Key.Q, Key.W, Key.E, Key.R, Key.T, Key.Y]
 A_Z_SPACE = [Key.SPACE, Key.A, Key.Z]
+
+
+def check_input_permissions():
+    """Check if user has appropriate permissions to /dev/input/ without requiring a keyboard"""
+
+    # Check if /dev/input/ directory exists and is accessible
+    if not os.path.exists('/dev/input'):
+        return False, "'/dev/input/' directory does not exist"
+
+    try:
+
+        # Try to list directory contents
+        device_files = os.listdir('/dev/input')
+        if not device_files:
+            return True, "'/dev/input/' directory is empty but accessible"
+
+        # Check permissions on at least one event device if available
+        for file in device_files:
+            if file.startswith('event'):
+                event_path = f'/dev/input/{file}'
+
+                # Check read permission
+                if not os.access(event_path, os.R_OK):
+                    return False, f"No read permission on '{event_path}'"
+
+                # Check write permission
+                if not os.access(event_path, os.W_OK):
+                    return False, f"No write permission on '{event_path}'"
+
+                # Found at least one accessible event device
+                return True, None
+
+        return True, "No event devices found, but '/dev/input/' is accessible"
+
+    except PermissionError as e:
+        return False, f"Permission error accessing '/dev/input/': {e}"
+    except Exception as e:
+        return False, f"Error checking input device permissions: {e}"
 
 
 class Devices:
@@ -79,17 +119,53 @@ class DeviceRegistry:
     def cares_about(self, device):
         return self._filter.filter(device)
 
+    # def autodetect(self):
+    #     devices = list(filter(self._filter.filter, Devices.all()))
+
+    #     if not devices:
+    #         error(
+    #             "no input devices matched "
+    #             "(do you have rw permission on /dev/input/*?)"
+    #         )
+    #         exit(1)
+
+    #     for device in devices:
+    #         self.grab(device)
+
     def autodetect(self):
-        devices = list(filter(self._filter.filter, Devices.all()))
+        # First check permissions independently of device availability
+        perms_ok, perms_msg = check_input_permissions()
+        if not perms_ok:
+            error(f"Input permission issue: {perms_msg}")
+            error("Please ensure you have r/w permissions on /dev/input/*")
+            # Continue running instead of exiting, but log clearly
+            info("Waiting for permissions to be fixed...")
+            return
 
-        if not devices:
-            error(
-                "no input devices matched "
-                "(do you have rw permission on /dev/input/*?)"
-            )
-            exit(1)
+        # Get all available devices (regardless of type)
+        all_devices = Devices.all()
 
-        for device in devices:
+        if not all_devices:
+            error("No input devices found at all in /dev/input/*")
+            info("Continuing to run and waiting for devices to be connected...")
+            return
+
+        # Filter for matching devices (keyboards)
+        matching_devices = list(filter(self._filter.filter, all_devices))
+
+        if not matching_devices:
+            # User specified devices with -d/--devices flag (or devices_api call in config)
+            if self._filter.matches:
+                error(f"Specified device(s) not found: {', '.join(self._filter.matches)}")
+            else:
+                error("No keyboard devices detected among available input devices")
+                debug(f"Found {len(all_devices)} non-keyboard input devices")
+
+            info("Continuing to run and waiting for compatible devices...")
+            return
+
+        # Grab all matching devices
+        for device in matching_devices:
             self.grab(device)
 
     def grab(self, device: InputDevice):
