@@ -246,7 +246,7 @@ Xwaykeyz internally has multiple "window context providers", to get the applicat
 ```py
 environ_api(
     session_type = 'session_type', # This will be 'x11' or 'wayland'
-    wl_desktop_env = 'a_wayland_de', # 'wlroots', 'kde', 'cinnamon', 'gnome', etc. 
+    wl_compositor = 'a_wayland_compositor', # 'wlroots', 'kwin_wayland', 'muffin', 'mutter', etc. 
 )
 ```
 
@@ -300,7 +300,7 @@ The configuration API:
 
 - `timeouts(multipurpose, suspend)`
 - `throttle_delays(key_pre_delay_ms, key_post_delay_ms)`
-- `environ_api(session_type = 'session_type', wl_desktop_env = 'desktop_environment')` - See above
+- `environ_api(session_type = 'session_type', wl_compositor = 'wayland_compositor')` - See above
 - `devices_api(only_devices=['List of Device Names','One or more devices'])` - See above
 - `wm_class_match(re_str)`
 - `not_wm_class_match(re_str)`
