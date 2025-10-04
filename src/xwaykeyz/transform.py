@@ -130,20 +130,38 @@ def resume_keys():
         ks.suspended = False
         if ks.key in _sticky:
             continue
+
         # if some other key PRESS is waking us up then we must be a modifier (we
         # know because if we were waking ourself it would happen in on_key)
         # but if a key RELEASE is waking us then we still might be momentary -
         # IF we were still the last key that was pressed
+
+        # if ks.is_multi:
+        #     other_mods = [e.key for e in states if e.key != ks.key]
+        #     # TODO: can this be cleaned up?
+        #     # special casing to allow shift-multi-mod to work more successfully if
+        #     # shift is the key you release first
+        #     if len(other_mods) == 1 \
+        #         and other_mods[0] in Modifier.SHIFT.keys \
+        #             and _last_key == ks.key:
+        #         pass  # momentary
+        #     else:
+        #         ks.key = ks.multikey  # hold
+        #     ks.multikey = False
+        #     ks.is_multi = False
+
+        # User submitted fix from Toshy issue #720
+        # https://github.com/RedBearAK/Toshy/issues/720
+        # 
         if ks.is_multi:
             other_mods = [e.key for e in states if e.key != ks.key]
-            # TODO: can this be cleaned up?
-            # special casing to allow shift-multi-mod to work more successfully if
-            # shift is the key you release first
-            if len(other_mods) == 1 \
-                and other_mods[0] in Modifier.SHIFT.keys \
-                    and _last_key == ks.key:
-                pass  # momentary
-            else:
+            special_shift_case = (
+                len(other_mods) == 1
+                and other_mods[0] in Modifier.SHIFT.keys
+                and ks.multikey in Modifier.SHIFT.keys
+                and _last_key == ks.key
+            )
+            if not special_shift_case:
                 ks.key = ks.multikey  # hold
             ks.multikey = False
             ks.is_multi = False
@@ -466,7 +484,9 @@ def on_key(keystate: Keystate, context):
                 keystate.resolve_as_modifier()
             resume_keys()
             transform_key(key, action, context)
-            update_pressed_states(keystate)
+            # update_pressed_states(keystate)
+        # Moved this out of "if keystate.is_multi" block to ensure always resetting keystate
+        update_pressed_states(keystate)
     else:
         # not a modifier or a multi-key, so pass straight to transform
         transform_key(key, action, context)
