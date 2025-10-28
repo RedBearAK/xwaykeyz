@@ -67,9 +67,24 @@ class Devices:
         # Otherwise, its not a keyboard!
         return False
 
+    # @staticmethod
+    # def all():
+    #     return [InputDevice(path) for path in reversed(list_devices())]
+
     @staticmethod
     def all():
-        return [InputDevice(path) for path in reversed(list_devices())]
+        """Get all available input devices, skipping any that fail to initialize"""
+        devices = []
+        for path in reversed(list_devices()):
+            try:
+                device = InputDevice(path)
+                devices.append(device)
+            except (OSError, BrokenPipeError) as err:
+                # OSError covers IOError, PermissionError, FileNotFoundError
+                # BrokenPipeError is explicitly caught for clarity (it's a subclass of OSError)
+                error(f"Skipping device '{path}': {err.__class__.__name__}: {err}")
+                continue
+        return devices
 
     @staticmethod
     def print_list():

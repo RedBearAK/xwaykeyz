@@ -173,6 +173,63 @@ def _inotify_handler(registry, inotify: INotify):
     _add_timer = loop.call_later(0.5, device_change_task)
 
 
+# async def device_change(registry: DeviceRegistry, events: List[inotify_Event]):
+#     while events:
+#         event: inotify_Event = events.pop(0)
+
+#         # type hint for `event.name` helps linter highlight `startswith()` correctly
+#         event_name: str = event.name
+#         # ignore mouse, mice, etc, non-event devices
+#         if not event_name.startswith("event"):
+#             continue
+
+#         filename = f"/dev/input/{event.name}"
+
+#         # deal with a permission problem of unknown origin
+#         tries                   = 9
+#         loop_cnt                = 1
+#         delay                   = 0.2
+#         delay_max               = delay * (2 ** (tries - 1))
+
+#         device = None
+#         while loop_cnt <= tries:
+#             try:
+#                 device = InputDevice(filename)
+#                 break  # Successful device initialization, exit retry loop
+#             except FileNotFoundError as fnf_err:
+#                 # error(f"File not found '{filename}':\n\t{fnf_err}")
+#                 registry.ungrab_by_filename(filename)
+#                 break  # Exit retry loop if the device is not found
+#             except PermissionError as perm_err:
+#                 if loop_cnt == tries:
+#                     error(f"PermissionError after {tries} attempts for '{filename}':\n\t{perm_err}")
+#                     break  # Final attempt due to PermissionError, exit retry loop
+#                 else:
+#                     error(  f"Retrying to initialize '{filename}' due to PermissionError. "
+#                             f"Attempt {loop_cnt} of {tries}.\n\t{perm_err}")
+#             await asyncio.sleep(delay)
+#             delay = min(delay * 2, delay_max)
+#             loop_cnt += 1
+
+#         if device is None:
+#             continue
+
+#         # unplugging
+#         if event.mask == flags.DELETE:
+#             if device in registry:
+#                 registry.ungrab(device)
+#             continue
+
+#         # potential new device
+#         try:
+#             if device not in registry:
+#                 if registry.cares_about(device):
+#                     registry.grab(device)
+#         except FileNotFoundError:
+#             # likely received ATTR right before a DELETE, so we ignore
+#             continue
+
+
 async def device_change(registry: DeviceRegistry, events: List[inotify_Event]):
     while events:
         event: inotify_Event = events.pop(0)
@@ -200,6 +257,17 @@ async def device_change(registry: DeviceRegistry, events: List[inotify_Event]):
                 # error(f"File not found '{filename}':\n\t{fnf_err}")
                 registry.ungrab_by_filename(filename)
                 break  # Exit retry loop if the device is not found
+            except BrokenPipeError as bp_err:
+                if loop_cnt == tries:
+                    error(f"BrokenPipeError after {tries} attempts for '{filename}':\n\t{bp_err}")
+                    error("Device may be in transition (KVM switch?), will retry on next event")
+                    break  # Exit retry loop after final attempt
+                else:
+                    error(  f"Retrying to initialize '{filename}' due to BrokenPipeError. "
+                            f"Attempt {loop_cnt} of {tries}.\n\t{bp_err}")
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, delay_max)
+                loop_cnt += 1
             except PermissionError as perm_err:
                 if loop_cnt == tries:
                     error(f"PermissionError after {tries} attempts for '{filename}':\n\t{perm_err}")
@@ -207,9 +275,9 @@ async def device_change(registry: DeviceRegistry, events: List[inotify_Event]):
                 else:
                     error(  f"Retrying to initialize '{filename}' due to PermissionError. "
                             f"Attempt {loop_cnt} of {tries}.\n\t{perm_err}")
-            await asyncio.sleep(delay)
-            delay = min(delay * 2, delay_max)
-            loop_cnt += 1
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, delay_max)
+                loop_cnt += 1
 
         if device is None:
             continue
