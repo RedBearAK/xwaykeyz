@@ -15,6 +15,7 @@ from evdev.eventio import EventIO
 from . import config_api, transform
 from .devices import DeviceFilter, DeviceGrabError, DeviceRegistry
 from .lib import logger
+from .lib.asyncio_utils import get_or_create_event_loop
 from .lib.dummy_device import DummyDevice
 from .lib.logger import debug, error, info
 from .models.action import Action
@@ -26,7 +27,8 @@ CONFIG = config_api
 
 
 def shutdown():
-    loop = asyncio.get_event_loop()
+    # loop = asyncio.get_event_loop()
+    loop = get_or_create_event_loop()
     loop.stop()
     transform.shutdown()
 
@@ -88,7 +90,8 @@ def main_loop(arg_devices, device_watch):
         inotify = watch_dev_input()
 
     try:
-        loop = asyncio.get_event_loop()
+        # loop = asyncio.get_event_loop()
+        loop = get_or_create_event_loop()
         registry = DeviceRegistry(
             loop, input_cb=receive_input, filterer=DeviceFilter(arg_devices)
         )
