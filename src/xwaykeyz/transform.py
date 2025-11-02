@@ -7,6 +7,7 @@ from typing import Dict, List
 
 from .config_api import escape_next_key, get_configuration, ignore_key, _ENVIRON, _REPEATING_KEYS
 from .lib import logger
+from .lib.asyncio_utils import get_or_create_event_loop
 from .lib.key_context import KeyContext
 from .lib.logger import debug
 from .models.action import Action
@@ -217,7 +218,8 @@ def suspend_keys(timeout):
     states: List[Keystate] = [x for x in _key_states.values() if x.is_pressed()]
     for s in states:
         s.suspended = True
-    loop = asyncio.get_event_loop()
+    # loop = asyncio.get_event_loop()
+    loop = get_or_create_event_loop()
     _last_suspend_timeout = timeout
     _suspend_timer = loop.call_later(timeout, resume_keys)
 
