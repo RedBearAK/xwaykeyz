@@ -132,7 +132,7 @@ async def test_terminate_should_release_keys():
 async def test_escape_next_key():
     keymap("Firefox",{
         K("C-j"): escape_next_key,
-        K("C-b"): K("Alt-TAB"),
+        K("C-b"): K("Alt-Tab"),
     })
 
     boot_config()
@@ -144,17 +144,96 @@ async def test_escape_next_key():
     release(Key.B)
     release(Key.LEFT_CTRL)
 
-    # thanks to escaping with just get a B rather
+    # thanks to escaping we just get a B rather
     # than the C-b combo
     assert _out.keys() == [
         (PRESS, Key.B),
         (RELEASE, Key.B),
     ]
 
+async def test_escape_next_combo_with_modifier_held():
+    """Test escaping when trigger combo modifier stays held"""
+    keymap("Firefox",{
+        K("C-j"): escape_next_combo,
+        K("C-b"): K("Alt-Tab"),
+    })
+
+    boot_config()
+
+    press(Key.LEFT_CTRL)
+    press(Key.J)         # Trigger escape
+    release(Key.J)       # Release trigger key, Ctrl still held
+    press(Key.B)         # Should escape to C-b, not remap to Alt-Tab
+    release(Key.B)
+    release(Key.LEFT_CTRL)
+
+    # Escaped C-b combo passes through unmapped
+    assert _out.keys() == [
+        (PRESS, Key.LEFT_CTRL),
+        (PRESS, Key.B),
+        (RELEASE, Key.B),
+        (RELEASE, Key.LEFT_CTRL),
+    ]
+
+async def test_escape_next_combo_with_additional_modifiers():
+    """Test escaping when adding modifiers after trigger"""
+    keymap("Firefox",{
+        K("C-j"): escape_next_combo,
+        K("C-Shift-b"): K("Alt-Tab"),
+    })
+
+    boot_config()
+
+    press(Key.LEFT_CTRL)
+    press(Key.J)         # Trigger escape
+    release(Key.J)
+    # Ctrl still held
+    press(Key.LEFT_SHIFT)   # Add another modifier
+    press(Key.B)         # Should escape to C-Shift-b, not remap to Alt-Tab
+    release(Key.B)
+    release(Key.LEFT_SHIFT)
+    release(Key.LEFT_CTRL)
+
+    # Escaped C-Shift-b combo passes through unmapped
+    assert _out.keys() == [
+        (PRESS, Key.LEFT_CTRL),
+        (PRESS, Key.LEFT_SHIFT),
+        (PRESS, Key.B),
+        (RELEASE, Key.B),
+        (RELEASE, Key.LEFT_SHIFT),
+        (RELEASE, Key.LEFT_CTRL),
+    ]
+
+async def test_escape_next_combo_with_different_modifiers():
+    """Test escaping when trigger combo is fully released before next combo"""
+    keymap("Firefox",{
+        K("C-j"): escape_next_combo,
+        K("Shift-b"): K("Alt-Tab"),
+    })
+
+    boot_config()
+
+    press(Key.LEFT_CTRL)
+    press(Key.J)         # Trigger escape
+    release(Key.J)
+    release(Key.LEFT_CTRL)  # Release trigger combo completely
+    press(Key.LEFT_SHIFT)   # Different modifier
+    press(Key.B)         # Should escape to Shift-b, not remap to Alt-Tab
+    release(Key.B)
+    release(Key.LEFT_SHIFT)
+
+    # Escaped Shift-b combo passes through unmapped
+    assert _out.keys() == [
+        (PRESS, Key.LEFT_SHIFT),
+        (PRESS, Key.B),
+        (RELEASE, Key.B),
+        (RELEASE, Key.LEFT_SHIFT),
+    ]
+
 @pytest.mark.looptime
 async def test_after_combo_should_lift_exerted_keys():
     keymap("Firefox",{
-        K("C-j"): K("Alt-TAB"),
+        K("C-j"): K("Alt-Tab"),
     })
 
     boot_config()
@@ -182,7 +261,7 @@ async def test_after_combo_should_lift_exerted_keys():
 @pytest.mark.looptime
 async def test_sticky_combo_should_lift_exerted_keys_before_combo():
     keymap("Firefox",{
-        K("C-j"): [bind, K("Alt-TAB")],
+        K("C-j"): [bind, K("Alt-Tab")],
     })
 
     boot_config()

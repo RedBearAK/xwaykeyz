@@ -10,8 +10,9 @@ from .modifier import Modifier
 @unique
 class ComboHint(IntEnum):
     BIND = 1
-    ESCAPE_NEXT = 2
+    ESCAPE_NEXT_KEY = 2
     IGNORE = 3
+    ESCAPE_NEXT_COMBO = 4
 
     def __str__(self):
         return self.__repr__()

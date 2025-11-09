@@ -5,7 +5,8 @@ import inspect
 from evdev import ecodes, InputEvent
 from typing import Dict, List
 
-from .config_api import escape_next_key, get_configuration, ignore_key, _ENVIRON, _REPEATING_KEYS
+from .config_api import (escape_next_key, escape_next_combo, ignore_key,
+                            get_configuration, _ENVIRON, _REPEATING_KEYS)
 from .lib import logger
 from .lib.asyncio_utils import get_or_create_event_loop
 from .lib.key_context import KeyContext
@@ -497,7 +498,7 @@ def on_key(keystate: Keystate, context):
         _last_key = key
 
 
-def transform_key(key, action, ctx: KeyContext):
+def transform_key(key, action: Action, ctx: KeyContext):
     global _active_keymaps
     is_top_level = False
 
@@ -515,6 +516,22 @@ def transform_key(key, action, ctx: KeyContext):
         debug(f"Escape key: {combo} => {key}")
         _output.send_key_action(key, action)
         _active_keymaps = None
+        return
+
+    # New version of `escape_next_key` that doesn't strip out modifiers from next combo.
+    # We need this to wait for a non-modifier key, then send through the unremapped combo (or key).
+    # More complicated than just escaping the very next normal key press.
+    if _active_keymaps is escape_next_combo:
+        # Ignore modifier keys and releases - wait for next actual keypress
+        if Modifier.is_key_modifier(key) or action.is_released():
+            _output.send_key_action(key, action)
+            return  # Stay in escape mode, don't consume the flag
+        
+        # This is a non-modifier key press - apply escape and consume flag
+        debug(f"Escape combo: {combo} => {combo}")
+        resume_keys()  # Ensure current modifiers are on output
+        _output.send_key_action(key, action)
+        _active_keymaps = None  # Consume the flag now
         return
 
     # Decide keymap(s)
@@ -641,6 +658,9 @@ def handle_commands(commands, key, action, ctx, input_combo=None):
                 _output.send_key(command)
             elif command is escape_next_key:
                 _active_keymaps = escape_next_key
+                return False
+            elif command is escape_next_combo:
+                _active_keymaps = escape_next_combo
                 return False
             elif command is ComboHint.BIND:
                 _next_bind = True
