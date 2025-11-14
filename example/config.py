@@ -100,8 +100,11 @@ keymap("Emacs-like keys", {
     C("Alt-Shift-key_5"): C("C-h"),
     # Cancel
     C("C-g"): [C("esc"), set_mark(False)],
-    # Escape
-    C("C-q"): escape_next_key,
+    # # Escape the next non-modifier key (held modifiers are dropped/released first)
+    # # Use-case for this is unknown? Contact if you know why this would be useful.
+    # C("C-q"): escape_next_key,
+    # Escape the next [mod(s)]+key combo seen
+    C("C-q"): escape_next_combo,
     # C-x YYY
     C("C-x"): {
         # C-x h (select all)

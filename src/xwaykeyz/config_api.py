@@ -1,6 +1,5 @@
 import itertools
 import re
-import string
 import sys
 import time
 import os
@@ -8,7 +7,6 @@ import inspect
 
 from inspect import signature
 from pprint import pformat as ppf
-from pprint import pprint as pp
 from typing import Dict, List, Optional
 
 from .lib.logger import error, debug
@@ -24,8 +22,9 @@ from .models.modmap import Modmap, MultiModmap
 
 # GLOBALS
 bind                            = ComboHint.BIND
-escape_next_key                 = ComboHint.ESCAPE_NEXT
+escape_next_key                 = ComboHint.ESCAPE_NEXT_KEY
 ignore_key                      = ComboHint.IGNORE
+escape_next_combo               = ComboHint.ESCAPE_NEXT_COMBO
 
 immediately                     = Trigger.IMMEDIATELY
 
