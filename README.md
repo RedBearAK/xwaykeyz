@@ -473,8 +473,9 @@ The argument `mappings` is a dictionary in the form of `{ combo: command, ...}` 
     - `K(combo_str)`: Type a specific key combo to the output.
     - `[command1, command2, ...]`: Execute multiple commands sequentially.
     - `{ ... }`: Sub-keymap. Used to define [Multiple Stroke Keys](#multiple-stroke-keys).
-    - `escape_next_key`: Escape the next key pressed.
-    - `ignore_key`: Ignore the key that is pressed next. (often used to disable native combos)
+    - `escape_next_key`: Escape the next (non-modifier) key pressed. Held modifiers are dropped!
+    - `escape_next_combo`: Escapes the next [mod(s)]+key combo seen. Does NOT drop modifiers.
+    - `ignore_key`: Ignore the key/combo that is pressed next. (often used to disable native combos)
     - `bind`: Bind an input and output modifier together such that the output is not lifted until the input is.
     - arbitrary function: The function is executed and the returned value (if any) is used as a command.
 
