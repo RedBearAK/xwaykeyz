@@ -1,3 +1,5 @@
+# src/xwaykeyz/models/keystate.py
+
 import time as _time
 from dataclasses import dataclass, field, replace
 
@@ -24,6 +26,9 @@ class Keystate:
     exerted_on_output: bool = False
     # if this keystate was spent by executing a combo
     spent: bool = False
+    # NEW: Track if any other key was pressed while this multikey was held
+    # Used for event-based tap-vs-hold decision making
+    other_key_pressed_while_held: bool = False
 
     def copy(self):
         return replace(self)
@@ -40,3 +45,5 @@ class Keystate:
         self.key = self.multikey
         self.is_multi = False
         self.multikey = False
+
+# End of file #

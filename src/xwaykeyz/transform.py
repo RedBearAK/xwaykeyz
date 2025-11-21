@@ -108,6 +108,72 @@ _suspend_timer = None
 _last_suspend_timeout = 0
 
 
+# def resume_keys():
+#     global _last_suspend_timeout
+#     global _suspend_timer
+#     if not is_suspended():
+#         return
+
+#     _suspend_timer.cancel()
+#     _last_suspend_timeout = 0
+#     _suspend_timer = None
+
+#     # keys = get_suspended_mods()
+#     states: List[Keystate] = [x for x in _key_states.values() if x.suspended]
+#     if len(states) > 0:
+#         debug("resuming keys:", [x.key for x in states])
+
+#     for ks in states:
+#         # spent keys that are held long enough to resume
+#         # no longer count as spent
+#         ks.spent = False
+#         # sticky keys (input side) remain silently held
+#         # and are only lifted when they are lifted from the input
+#         ks.suspended = False
+#         if ks.key in _sticky:
+#             continue
+
+#         # if some other key PRESS is waking us up then we must be a modifier (we
+#         # know because if we were waking ourself it would happen in on_key)
+#         # but if a key RELEASE is waking us then we still might be momentary -
+#         # IF we were still the last key that was pressed
+
+#         # if ks.is_multi:
+#         #     other_mods = [e.key for e in states if e.key != ks.key]
+#         #     # TODO: can this be cleaned up?
+#         #     # special casing to allow shift-multi-mod to work more successfully if
+#         #     # shift is the key you release first
+#         #     if len(other_mods) == 1 \
+#         #         and other_mods[0] in Modifier.SHIFT.keys \
+#         #             and _last_key == ks.key:
+#         #         pass  # momentary
+#         #     else:
+#         #         ks.key = ks.multikey  # hold
+#         #     ks.multikey = False
+#         #     ks.is_multi = False
+
+#         # User submitted fix from Toshy issue #720
+#         # https://github.com/RedBearAK/Toshy/issues/720
+#         # 
+#         if ks.is_multi:
+#             other_mods = [e.key for e in states if e.key != ks.key]
+#             special_shift_case = (
+#                 len(other_mods) == 1
+#                 and other_mods[0] in Modifier.SHIFT.keys
+#                 and ks.multikey in Modifier.SHIFT.keys
+#                 and _last_key == ks.key
+#             )
+#             if not special_shift_case:
+#                 ks.key = ks.multikey  # hold
+#             ks.multikey = False
+#             ks.is_multi = False
+
+#         if not ks.exerted_on_output:
+#             ks.exerted_on_output = True
+#             _output.send_key_action(ks.key, Action.PRESS)
+
+
+
 def resume_keys():
     global _last_suspend_timeout
     global _suspend_timer
@@ -138,35 +204,28 @@ def resume_keys():
         # but if a key RELEASE is waking us then we still might be momentary -
         # IF we were still the last key that was pressed
 
-        # if ks.is_multi:
-        #     other_mods = [e.key for e in states if e.key != ks.key]
-        #     # TODO: can this be cleaned up?
-        #     # special casing to allow shift-multi-mod to work more successfully if
-        #     # shift is the key you release first
-        #     if len(other_mods) == 1 \
-        #         and other_mods[0] in Modifier.SHIFT.keys \
-        #             and _last_key == ks.key:
-        #         pass  # momentary
-        #     else:
-        #         ks.key = ks.multikey  # hold
-        #     ks.multikey = False
-        #     ks.is_multi = False
-
-        # User submitted fix from Toshy issue #720
-        # https://github.com/RedBearAK/Toshy/issues/720
-        # 
+        # EVENT-BASED LOGIC: Use the flag instead of complicated heuristics
         if ks.is_multi:
-            other_mods = [e.key for e in states if e.key != ks.key]
-            special_shift_case = (
-                len(other_mods) == 1
-                and other_mods[0] in Modifier.SHIFT.keys
-                and ks.multikey in Modifier.SHIFT.keys
-                and _last_key == ks.key
-            )
-            if not special_shift_case:
-                ks.key = ks.multikey  # hold
-            ks.multikey = False
-            ks.is_multi = False
+            # Check if another key was pressed while this multikey was held
+            if ks.other_key_pressed_while_held:
+                # Another key was pressed → resolve as modifier
+                ks.resolve_as_modifier()
+            else:
+                # Timeout reached but no other key pressed
+                # Treat as modifier (timeout fallback behavior)
+                # This handles the case where user just holds the key down
+                other_mods = [e.key for e in states if e.key != ks.key]
+                special_shift_case = (
+                    len(other_mods) == 1
+                    and other_mods[0] in Modifier.SHIFT.keys
+                    and ks.multikey in Modifier.SHIFT.keys
+                    and _last_key == ks.key
+                )
+                if not special_shift_case:
+                    ks.resolve_as_modifier()
+                else:
+                    # Special case: keep as momentary
+                    pass
 
         if not ks.exerted_on_output:
             ks.exerted_on_output = True
@@ -453,18 +512,81 @@ def on_mod_key(keystate: Keystate, context):
             keystate.exerted_on_output = False
 
 
+# def on_key(keystate: Keystate, context):
+#     global _last_key
+
+#     key, action = (keystate.key, keystate.action)
+#     debug("on_key", key, action)
+
+#     if Modifier.is_key_modifier(key):
+#         on_mod_key(keystate, context)
+
+#     elif keystate.is_multi and action.just_pressed():
+#         # debug("multi pressed", key)
+#         keystate.suspended = True
+#         update_pressed_states(keystate)
+#         suspend_keys(_TIMEOUTS["multipurpose"])
+
+#     elif keystate.is_multi and action.is_repeat and keystate.suspended:
+#         pass
+#         # do nothing
+
+#     # regular key releases, not modifiers (though possibly a multi-mod)
+#     elif action.is_released():
+#         if _output.is_pressed(key):
+#             _output.send_key_action(key, action)
+#         if keystate.is_multi:
+#             debug("multi released early", key)
+#             # we've triggered ourself with our own key (lifting)
+#             # before the timeout, so we are a normal momentary
+#             # input
+#             if _last_key == key:
+#                 keystate.resolve_as_momentary()
+#             else:
+#                 keystate.resolve_as_modifier()
+#             resume_keys()
+#             transform_key(key, action, context)
+#             # update_pressed_states(keystate)
+#         # Moved this out of "if keystate.is_multi" block to ensure always resetting keystate
+#         update_pressed_states(keystate)
+#     else:
+#         # not a modifier or a multi-key, so pass straight to transform
+#         transform_key(key, action, context)
+
+#     if action.just_pressed():
+#         _last_key = key
+
+
 def on_key(keystate: Keystate, context):
     global _last_key
 
     key, action = (keystate.key, keystate.action)
     debug("on_key", key, action)
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # EVENT-BASED MULTIKEY DETECTION
+    # When ANY key is pressed, check if we have suspended multikeys
+    # and resolve them immediately as modifiers
+    # ──────────────────────────────────────────────────────────────────────────
+    if action.just_pressed() and not keystate.is_multi:
+        for ks in _key_states.values():
+            if ks.is_multi and ks.suspended and ks.is_pressed():
+                debug(f"Resolving {ks.key} as modifier due to {key} press")
+                ks.resolve_as_modifier()
+                ks.suspended = False
+                ks.other_key_pressed_while_held = True
+                if not ks.exerted_on_output:
+                    _output.send_key_action(ks.key, Action.PRESS)
+                    ks.exerted_on_output = True
+
+    # Continue with normal processing...
     if Modifier.is_key_modifier(key):
         on_mod_key(keystate, context)
 
     elif keystate.is_multi and action.just_pressed():
         # debug("multi pressed", key)
         keystate.suspended = True
+        keystate.other_key_pressed_while_held = False  # Initialize flag
         update_pressed_states(keystate)
         suspend_keys(_TIMEOUTS["multipurpose"])
 
@@ -478,13 +600,13 @@ def on_key(keystate: Keystate, context):
             _output.send_key_action(key, action)
         if keystate.is_multi:
             debug("multi released early", key)
-            # we've triggered ourself with our own key (lifting)
-            # before the timeout, so we are a normal momentary
-            # input
-            if _last_key == key:
-                keystate.resolve_as_momentary()
-            else:
+            # EVENT-BASED DECISION: Check the flag instead of _last_key
+            if keystate.other_key_pressed_while_held:
+                # Another key was pressed while held → this was used as modifier
                 keystate.resolve_as_modifier()
+            else:
+                # No other key pressed while held → this was a tap
+                keystate.resolve_as_momentary()
             resume_keys()
             transform_key(key, action, context)
             # update_pressed_states(keystate)
