@@ -126,7 +126,12 @@ class Output:
         self.__update_pressed_modifier_keys(key, action)
         self.__update_pressed_keys(key, action)
         _uinput.write(ecodes.EV_KEY, key, action)
-        debug(action, key, time.time(), ctx="OO")
+        # debug(action, key, time.time(), ctx="OO")
+
+        mod_name = Modifier.get_modifier_name(key)
+        mod_suffix = f" ({mod_name} mod)" if mod_name else ""
+        debug(action, f"{key}{mod_suffix}", time.time(), ctx="OO")
+
         self.__send_sync()
 
     def send_combo(self, combo: Combo):

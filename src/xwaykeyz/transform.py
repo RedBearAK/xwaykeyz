@@ -571,7 +571,12 @@ def on_key(keystate: Keystate, context):
     if action.just_pressed() and not keystate.is_multi:
         for ks in _key_states.values():
             if ks.is_multi and ks.suspended and ks.is_pressed():
-                debug(f"Resolving {ks.key} as modifier due to {key} press")
+                # debug(f"Resolving {ks.key} as modifier due to {key} press")
+
+                mod_name = Modifier.get_modifier_name(ks.multikey)
+                mod_suffix = f" ({mod_name} mod)" if mod_name else ""
+                debug(f"Resolving {ks.inkey.name} as {ks.multikey.name}{mod_suffix} due to {key} press")
+
                 ks.resolve_as_modifier()
                 ks.suspended = False
                 ks.other_key_pressed_while_held = True

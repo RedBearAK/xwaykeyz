@@ -6,6 +6,7 @@ class Modifier:
 
     _BY_KEY = {}
     _MODIFIERS = {}
+    _KEY_TO_NAME = {}           # Cache for keycode -> modifier name lookups
     _IDS = iter(range(100))
 
     def __init__(self, name, aliases, key=None, keys=None):
@@ -25,6 +26,7 @@ class Modifier:
                     " already assigned to another modifier"
                 )
             cls._BY_KEY[key] = self
+            cls._KEY_TO_NAME[key] = self.name  # Update cache of modifier names
         if name in cls._MODIFIERS:
             raise ValueError(f"existing modifier named {name} already exists")
         cls._MODIFIERS[name] = self
@@ -82,6 +84,11 @@ class Modifier:
             if alias in mod.aliases:
                 return mod
         return None
+
+    @classmethod
+    def get_modifier_name(cls, key):
+        """Get the modifier name for a key, or None if not a modifier"""
+        return cls._KEY_TO_NAME.get(key)
 
 
 # create all the default modifiers we ship with
