@@ -371,6 +371,11 @@ def apply_multi_modmap(keystate: Keystate, context: KeyContext):
             keystate.multikey = held
             keystate.is_multi = True
 
+            # Log the multipurpose mapping
+            held_mod_name = Modifier.get_modifier_name(held)
+            held_suffix = f" ({held_mod_name} mod)" if held_mod_name else ""
+            debug(f"MULTI_MODMAP: {keystate.inkey} => {momentary} / {held}{held_suffix} [{active_multi_modmap.name}]")
+
 
 JUST_KEYS = []
 JUST_KEYS.extend([Key[x] for x in "QWERTYUIOPASDFGHJKLZXCVBNM"])
@@ -512,56 +517,15 @@ def on_mod_key(keystate: Keystate, context):
             keystate.exerted_on_output = False
 
 
-# def on_key(keystate: Keystate, context):
-#     global _last_key
-
-#     key, action = (keystate.key, keystate.action)
-#     debug("on_key", key, action)
-
-#     if Modifier.is_key_modifier(key):
-#         on_mod_key(keystate, context)
-
-#     elif keystate.is_multi and action.just_pressed():
-#         # debug("multi pressed", key)
-#         keystate.suspended = True
-#         update_pressed_states(keystate)
-#         suspend_keys(_TIMEOUTS["multipurpose"])
-
-#     elif keystate.is_multi and action.is_repeat and keystate.suspended:
-#         pass
-#         # do nothing
-
-#     # regular key releases, not modifiers (though possibly a multi-mod)
-#     elif action.is_released():
-#         if _output.is_pressed(key):
-#             _output.send_key_action(key, action)
-#         if keystate.is_multi:
-#             debug("multi released early", key)
-#             # we've triggered ourself with our own key (lifting)
-#             # before the timeout, so we are a normal momentary
-#             # input
-#             if _last_key == key:
-#                 keystate.resolve_as_momentary()
-#             else:
-#                 keystate.resolve_as_modifier()
-#             resume_keys()
-#             transform_key(key, action, context)
-#             # update_pressed_states(keystate)
-#         # Moved this out of "if keystate.is_multi" block to ensure always resetting keystate
-#         update_pressed_states(keystate)
-#     else:
-#         # not a modifier or a multi-key, so pass straight to transform
-#         transform_key(key, action, context)
-
-#     if action.just_pressed():
-#         _last_key = key
-
-
 def on_key(keystate: Keystate, context):
     global _last_key
 
     key, action = (keystate.key, keystate.action)
-    debug("on_key", key, action)
+    # debug("on_key", key, action)
+
+    mod_name = Modifier.get_modifier_name(key)
+    mod_suffix = f" ({mod_name} mod)" if mod_name else ""
+    debug("on_key", f"{key}{mod_suffix}", action)
 
     # ──────────────────────────────────────────────────────────────────────────
     # EVENT-BASED MULTIKEY DETECTION
@@ -571,7 +535,12 @@ def on_key(keystate: Keystate, context):
     if action.just_pressed() and not keystate.is_multi:
         for ks in _key_states.values():
             if ks.is_multi and ks.suspended and ks.is_pressed():
-                debug(f"Resolving {ks.key} as modifier due to {key} press")
+                # debug(f"Resolving {ks.key} as modifier due to {key} press")
+
+                mod_name = Modifier.get_modifier_name(ks.multikey)
+                mod_suffix = f" ({mod_name} mod)" if mod_name else ""
+                debug(f"Resolving {ks.inkey.name} as {ks.multikey.name}{mod_suffix} due to {key} press")
+
                 ks.resolve_as_modifier()
                 ks.suspended = False
                 ks.other_key_pressed_while_held = True
@@ -599,13 +568,18 @@ def on_key(keystate: Keystate, context):
         if _output.is_pressed(key):
             _output.send_key_action(key, action)
         if keystate.is_multi:
-            debug("multi released early", key)
+            # debug("multi released early", key)
+            debug("Multipurpose key released before timeout expired", key)
             # EVENT-BASED DECISION: Check the flag instead of _last_key
             if keystate.other_key_pressed_while_held:
                 # Another key was pressed while held → this was used as modifier
+                mod_name = Modifier.get_modifier_name(keystate.multikey)
+                mod_suffix = f" ({mod_name} mod)" if mod_name else ""
+                debug(f"Resolved multi-key {keystate.inkey.name} as {keystate.multikey.name}{mod_suffix} (hold)")
                 keystate.resolve_as_modifier()
             else:
                 # No other key pressed while held → this was a tap
+                debug(f"Resolved multi-key {keystate.inkey.name} as {keystate.key.name} (tap)")
                 keystate.resolve_as_momentary()
             resume_keys()
             transform_key(key, action, context)
