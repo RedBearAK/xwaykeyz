@@ -175,42 +175,91 @@ class DeviceRegistry:
         for device in matching_devices:
             await self.grab(device)
 
-    async def grab(self, device: InputDevice):
+    async def _wait_for_device_idle(self, device, max_wait=5.0, quiet_period=0.15):
         """
-        Async grab that waits for device to be idle (no keys held) before grabbing.
+        Wait for device to be idle with no key activity for quiet_period seconds.
+        
+        Checks both instantaneous key state (via active_keys) and buffered events
+        (via read_one). This catches rapid tap-tap-tap patterns that instantaneous
+        checks alone would miss.
+        
+        Returns True if device became idle, False if timed out or device error.
+        """
+        start_time = time.monotonic()
+        last_activity = time.monotonic()
+        poll_interval = 0.02        # 20ms between checks
+        
+        while time.monotonic() - start_time < max_wait:
+            # Check instantaneous key state
+            try:
+                active = device.active_keys()
+                if active:
+                    debug(f"Waiting for '{device.name}' to be idle, held keys: {active}")
+                    last_activity = time.monotonic()
+            except OSError as e:
+                error(f"Device '{device.name}' error checking active keys: {e}")
+                return False  # Device gone
+            
+            # Check for buffered events
+            # We can consume these safely - we don't own the device yet, so the
+            # compositor/desktop is still receiving events through its own fd.
+            # This just lets us detect activity.
+            try:
+                while True:
+                    event = device.read_one()
+                    if event is None:
+                        break
+                    # Any event counts as activity
+                    debug(f"Device '{device.name}' has buffered event, resetting idle timer")
+                    last_activity = time.monotonic()
+            except BlockingIOError:
+                pass  # No events waiting, that's fine
+            except OSError as e:
+                error(f"Device '{device.name}' error reading events: {e}")
+                return False  # Device gone
+            
+            # Have we been quiet long enough?
+            idle_duration = time.monotonic() - last_activity
+            if idle_duration >= quiet_period:
+                debug(f"Device '{device.name}' idle for {idle_duration:.3f}s, proceeding with grab")
+                return True
+            
+            await asyncio.sleep(poll_interval)
+        
+        # Timed out
+        return False
+
+    async def grab(self, device):
+        """
+        Async grab that waits for device to be idle before grabbing.
         This prevents state corruption when users have keys held during startup.
         """
+        if not isinstance(device, InputDevice):
+            return
+
         info(f"Grabbing '{device.name}' ({device.path})", ctx="+K")
 
         # ─── WAIT FOR DEVICE TO BE IDLE ─────────────────────────────────────────────
-        # Use device.active_keys() to check if any keys are currently held.
-        # This queries the kernel's key state bitmap via EVIOCGKEY ioctl.
-        # No event reader needed - it's a direct kernel query.
-
+        # Wait for sustained quiet period with no keys held and no buffered events.
+        # This catches both held keys and rapid tap-tap-tap patterns.
+        
         max_idle_wait = 5.0         # Maximum seconds to wait for device to be idle
-        poll_interval = 0.05        # 50ms between checks
-        start_time = time.monotonic()
-
-        while time.monotonic() - start_time < max_idle_wait:
-            try:
-                active = device.active_keys()
-                if not active:
-                    # No keys held - safe to proceed with grab
-                    break
-                debug(f"Waiting for '{device.name}' to be idle, held keys: {active}")
-                await asyncio.sleep(poll_interval)
-            except OSError as e:
-                error(f"Device '{device.name}' error while waiting for idle: {e}")
-                return  # Device may have disappeared
-        else:
-            # Timed out waiting for idle - check one more time and warn if still held
+        quiet_period = 0.15         # Require 150ms of silence before grabbing
+        
+        idle_ok = await self._wait_for_device_idle(device, max_idle_wait, quiet_period)
+        
+        if not idle_ok:
+            # Check if it's because of timeout vs device error
             try:
                 active = device.active_keys()
                 if active:
                     info(f"Device '{device.name}' still has keys held after {max_idle_wait}s: {active}")
-                    info("Grabbing anyway - user may experience input glitches")
+                else:
+                    info(f"Device '{device.name}' had continuous activity for {max_idle_wait}s")
+                info("Grabbing anyway - user may experience input glitches")
             except OSError:
-                pass  # Device may be gone, proceed to grab attempt anyway
+                error(f"Device '{device.name}' disappeared while waiting for idle")
+                return
 
         # ─── ATTEMPT GRAB WITH RETRIES ──────────────────────────────────────────────
         tries                   = 9
