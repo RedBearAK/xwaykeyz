@@ -1,3 +1,6 @@
+# src/xwaykeyz/input.py
+# Async startup version - waits for devices to be idle before grabbing
+
 import signal
 import asyncio
 
@@ -6,7 +9,6 @@ from copy import copy
 from inotify_simple import INotify, flags
 from inotify_simple import Event as inotify_Event
 from sys import exit
-from time import sleep
 from typing import List, Optional
 
 from evdev import InputDevice, InputEvent, ecodes
@@ -27,7 +29,6 @@ CONFIG = config_api
 
 
 def shutdown():
-    # loop = asyncio.get_event_loop()
     loop = get_or_create_event_loop()
     loop.stop()
     transform.shutdown()
@@ -54,14 +55,11 @@ def watch_dev_input():
 # Why? xmodmap won't persist mapping changes until it's seen at least
 # one keystroke on a new device, so we need to give it something that
 # won't do any harm, but is still an actual keypress, hence shift.
-def wakeup_output():
-
-    # # This might have done something for xmodmap, but first mod press was always ignored in X11
-    # down = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.PRESS)
-    # up = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.RELEASE)
-    # for ev in [down, up]:
-    #     on_event(ev, None)
-
+async def wakeup_output():
+    """
+    Send a synthetic Shift press/release through the transform engine.
+    Converted to async to use proper async sleep during startup phase.
+    """
     # Store the user's current setting for verbosity
     _verbose_state = copy(logger.VERBOSE)
 
@@ -74,7 +72,7 @@ def wakeup_output():
     up = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.RELEASE)
     for ev in [down, up]:
         on_event(ev, dummy_device)
-        sleep(0.01)         # Chill after press and release of Shift key
+        await asyncio.sleep(0.01)   # Chill after press and release of Shift key
 
     # Restore the user's setting for verbosity, whether it was True or False
     logger.VERBOSE = _verbose_state
@@ -84,18 +82,23 @@ def main_loop(arg_devices, device_watch):
     inotify = None
 
     boot_config()
-    wakeup_output()
 
     if device_watch:
         inotify = watch_dev_input()
 
+    loop = get_or_create_event_loop()
+    registry = DeviceRegistry(
+        loop, input_cb=receive_input, filterer=DeviceFilter(arg_devices)
+    )
+
+    async def async_startup():
+        """Run async startup tasks before entering the main event loop."""
+        await wakeup_output()
+        await registry.autodetect()
+
     try:
-        # loop = asyncio.get_event_loop()
-        loop = get_or_create_event_loop()
-        registry = DeviceRegistry(
-            loop, input_cb=receive_input, filterer=DeviceFilter(arg_devices)
-        )
-        registry.autodetect()
+        # Run async startup (wakeup_output and device grabbing) before main loop
+        loop.run_until_complete(async_startup())
 
         if device_watch:
             loop.add_reader(inotify.fd, _inotify_handler, registry, inotify)
@@ -149,7 +152,7 @@ def receive_input(device: EventIO):
     # swallow "no such device errors" when unplugging a USB
     # device and we still have a few events in the inotify queue
     except OSError as e:
-        if not e.errno == 19: # no such device
+        if not e.errno == 19:  # no such device
             raise
 
 
@@ -176,71 +179,27 @@ def _inotify_handler(registry, inotify: INotify):
     _add_timer = loop.call_later(0.5, device_change_task)
 
 
-# async def device_change(registry: DeviceRegistry, events: List[inotify_Event]):
-#     while events:
-#         event: inotify_Event = events.pop(0)
+async def device_change(registry, events):
 
-#         # type hint for `event.name` helps linter highlight `startswith()` correctly
-#         event_name: str = event.name
-#         # ignore mouse, mice, etc, non-event devices
-#         if not event_name.startswith("event"):
-#             continue
+    if not isinstance(registry, DeviceRegistry):
+        return
 
-#         filename = f"/dev/input/{event.name}"
+    if not isinstance(events, list):
+        return
 
-#         # deal with a permission problem of unknown origin
-#         tries                   = 9
-#         loop_cnt                = 1
-#         delay                   = 0.2
-#         delay_max               = delay * (2 ** (tries - 1))
-
-#         device = None
-#         while loop_cnt <= tries:
-#             try:
-#                 device = InputDevice(filename)
-#                 break  # Successful device initialization, exit retry loop
-#             except FileNotFoundError as fnf_err:
-#                 # error(f"File not found '{filename}':\n\t{fnf_err}")
-#                 registry.ungrab_by_filename(filename)
-#                 break  # Exit retry loop if the device is not found
-#             except PermissionError as perm_err:
-#                 if loop_cnt == tries:
-#                     error(f"PermissionError after {tries} attempts for '{filename}':\n\t{perm_err}")
-#                     break  # Final attempt due to PermissionError, exit retry loop
-#                 else:
-#                     error(  f"Retrying to initialize '{filename}' due to PermissionError. "
-#                             f"Attempt {loop_cnt} of {tries}.\n\t{perm_err}")
-#             await asyncio.sleep(delay)
-#             delay = min(delay * 2, delay_max)
-#             loop_cnt += 1
-
-#         if device is None:
-#             continue
-
-#         # unplugging
-#         if event.mask == flags.DELETE:
-#             if device in registry:
-#                 registry.ungrab(device)
-#             continue
-
-#         # potential new device
-#         try:
-#             if device not in registry:
-#                 if registry.cares_about(device):
-#                     registry.grab(device)
-#         except FileNotFoundError:
-#             # likely received ATTR right before a DELETE, so we ignore
-#             continue
-
-
-async def device_change(registry: DeviceRegistry, events: List[inotify_Event]):
     while events:
-        event: inotify_Event = events.pop(0)
+        event = events.pop(0)
 
-        # type hint for `event.name` helps linter highlight `startswith()` correctly
-        event_name: str = event.name
+        if not isinstance(event, inotify_Event):
+            raise TypeError(f"Expected inotify_Event, got {type(event).__name__}")
+
         # ignore mouse, mice, etc, non-event devices
-        if not event_name.startswith("event"):
+
+        # This guard clause lights up '.startswith()' by affirming the string type.
+        if not isinstance(event.name, str):
+            continue
+
+        if not event.name.startswith("event"):
             continue
 
         filename = f"/dev/input/{event.name}"
@@ -256,8 +215,7 @@ async def device_change(registry: DeviceRegistry, events: List[inotify_Event]):
             try:
                 device = InputDevice(filename)
                 break  # Successful device initialization, exit retry loop
-            except FileNotFoundError as fnf_err:
-                # error(f"File not found '{filename}':\n\t{fnf_err}")
+            except FileNotFoundError:
                 registry.ungrab_by_filename(filename)
                 break  # Exit retry loop if the device is not found
             except BrokenPipeError as bp_err:
@@ -291,11 +249,13 @@ async def device_change(registry: DeviceRegistry, events: List[inotify_Event]):
                 registry.ungrab(device)
             continue
 
-        # potential new device
+        # potential new device - use async grab for hot-plugged devices too
         try:
             if device not in registry:
                 if registry.cares_about(device):
-                    registry.grab(device)
+                    await registry.grab(device)
         except FileNotFoundError:
             # likely received ATTR right before a DELETE, so we ignore
             continue
+
+# End of file #
