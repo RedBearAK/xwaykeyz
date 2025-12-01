@@ -1,6 +1,6 @@
 __name__ = "xwaykeyz"
 
-__version__ = "1.8.1"
+__version__ = "1.9.0b"
 
 __description__ = "A smart, flexible key remapper for Linux/X11."
 
