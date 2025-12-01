@@ -1,13 +1,18 @@
+# src/xwaykeyz/devices.py
+# Async startup version - waits for devices to be idle before grabbing
+
 import os
+import asyncio
+import time
 
 from asyncio import AbstractEventLoop
 from evdev import InputDevice, list_devices
-from time import sleep
 from typing import List
 
 from .lib.logger import debug, error, info
 from .models.key import Key
 from .output import VIRT_DEVICE_PREFIX
+
 
 QWERTY = [Key.Q, Key.W, Key.E, Key.R, Key.T, Key.Y]
 A_Z_SPACE = [Key.SPACE, Key.A, Key.Z]
@@ -67,10 +72,6 @@ class Devices:
         # Otherwise, its not a keyboard!
         return False
 
-    # @staticmethod
-    # def all():
-    #     return [InputDevice(path) for path in reversed(list_devices())]
-
     @staticmethod
     def all():
         """Get all available input devices, skipping any that fail to initialize"""
@@ -90,20 +91,20 @@ class Devices:
     def print_list():
         # Get all devices
         devices = Devices.all()
-        
+
         # Define column widths
         DEVICE_WIDTH = 20
         NAME_WIDTH = 35
-        
+
         # Calculate the total width needed for the table
-        max_phys_length = max(len(device.phys) for device in devices)
+        max_phys_length = max(len(device.phys) for device in devices) if devices else 0
         total_width = DEVICE_WIDTH + NAME_WIDTH + max_phys_length + 3  # +3 for spaces between columns
-        
+
         # Print header
         print("-" * total_width)
         print(f"{'Device':<{DEVICE_WIDTH}} {'Name':<{NAME_WIDTH}} {'Phys'}")
         print("-" * total_width)
-        
+
         # Print each device
         for device in devices:
             if len(device.name) > NAME_WIDTH:
@@ -113,7 +114,7 @@ class Devices:
             else:
                 # Print everything on one line
                 print(f"{device.path:<{DEVICE_WIDTH}} {device.name:<{NAME_WIDTH}} {device.phys}")
-        
+
         print()
 
 
@@ -134,20 +135,11 @@ class DeviceRegistry:
     def cares_about(self, device):
         return self._filter.filter(device)
 
-    # def autodetect(self):
-    #     devices = list(filter(self._filter.filter, Devices.all()))
-
-    #     if not devices:
-    #         error(
-    #             "no input devices matched "
-    #             "(do you have rw permission on /dev/input/*?)"
-    #         )
-    #         exit(1)
-
-    #     for device in devices:
-    #         self.grab(device)
-
-    def autodetect(self):
+    async def autodetect(self):
+        """
+        Async version of autodetect - finds keyboards and grabs them,
+        waiting for each device to be idle (no keys held) before grabbing.
+        """
         # First check permissions independently of device availability
         perms_ok, perms_msg = check_input_permissions()
         if not perms_ok:
@@ -179,29 +171,120 @@ class DeviceRegistry:
             info("Continuing to run and waiting for compatible devices...")
             return
 
-        # Grab all matching devices
+        # Grab all matching devices using async grab
         for device in matching_devices:
-            self.grab(device)
+            await self.grab(device)
 
-    def grab(self, device: InputDevice):
+    async def _wait_for_device_idle(self, device, max_wait=5.0, quiet_period=0.15):
+        """
+        Wait for device to be idle with no key activity for quiet_period seconds.
+        
+        Checks both instantaneous key state (via active_keys) and buffered events
+        (via read_one). This catches rapid tap-tap-tap patterns that instantaneous
+        checks alone would miss.
+        
+        Returns True if device became idle, False if timed out or device error.
+        """
+        start_time = time.monotonic()
+        last_activity = time.monotonic()
+        poll_interval = 0.02        # 20ms between checks
+        
+        while time.monotonic() - start_time < max_wait:
+            # Check instantaneous key state
+            try:
+                active = device.active_keys()
+                if active:
+                    debug(f"Waiting for '{device.name}' to be idle, held keys: {active}")
+                    last_activity = time.monotonic()
+            except OSError as e:
+                error(f"Device '{device.name}' error checking active keys: {e}")
+                return False  # Device gone
+            
+            # Check for buffered events
+            # We can consume these safely - we don't own the device yet, so the
+            # compositor/desktop is still receiving events through its own fd.
+            # This just lets us detect activity.
+            try:
+                while True:
+                    event = device.read_one()
+                    if event is None:
+                        break
+                    # Any event counts as activity
+                    debug(f"Device '{device.name}' has buffered event, resetting idle timer")
+                    last_activity = time.monotonic()
+            except BlockingIOError:
+                pass  # No events waiting, that's fine
+            except OSError as e:
+                error(f"Device '{device.name}' error reading events: {e}")
+                return False  # Device gone
+            
+            # Have we been quiet long enough?
+            idle_duration = time.monotonic() - last_activity
+            if idle_duration >= quiet_period:
+                debug(f"Device '{device.name}' idle for {idle_duration:.3f}s, proceeding with grab")
+                return True
+            
+            await asyncio.sleep(poll_interval)
+        
+        # Timed out
+        return False
+
+    async def grab(self, device):
+        """
+        Async grab that waits for device to be idle before grabbing.
+        This prevents state corruption when users have keys held during startup.
+        """
+        if not isinstance(device, InputDevice):
+            return
+
         info(f"Grabbing '{device.name}' ({device.path})", ctx="+K")
-        self._loop.add_reader(device, self._input_cb, device)
-        self._devices.append(device)
+
+        # ─── WAIT FOR DEVICE TO BE IDLE ─────────────────────────────────────────────
+        # Wait for sustained quiet period with no keys held and no buffered events.
+        # This catches both held keys and rapid tap-tap-tap patterns.
+        
+        max_idle_wait = 5.0         # Maximum seconds to wait for device to be idle
+        quiet_period = 0.15         # Require 150ms of silence before grabbing
+        
+        idle_ok = await self._wait_for_device_idle(device, max_idle_wait, quiet_period)
+        
+        if not idle_ok:
+            # Check if it's because of timeout vs device error
+            try:
+                active = device.active_keys()
+                if active:
+                    info(f"Device '{device.name}' still has keys held after {max_idle_wait}s: {active}")
+                else:
+                    info(f"Device '{device.name}' had continuous activity for {max_idle_wait}s")
+                info("Grabbing anyway - user may experience input glitches")
+            except OSError:
+                error(f"Device '{device.name}' disappeared while waiting for idle")
+                return
+
+        # ─── ATTEMPT GRAB WITH RETRIES ──────────────────────────────────────────────
         tries                   = 9
         loop_cnt                = 1
         delay                   = 0.2
         delay_max               = delay * (2 ** (tries - 1))
+
         while loop_cnt <= tries:
             try:
-                sleep(delay)
+                await asyncio.sleep(delay)
                 device.grab()
+                # Only add reader AFTER successful grab - this is the key fix!
+                # Previously add_reader was called before grab, creating a window
+                # where events could arrive before we had exclusive access.
+                self._loop.add_reader(device, self._input_cb, device)
+                self._devices.append(device)
                 info(f"Successfully grabbed '{device.name}' ({device.path})", ctx="+K")
                 return
-            except OSError as err:      # OSError also inherits/catches PermissionError and IOError
+            except OSError as err:
+                # OSError also inherits/catches PermissionError and IOError
                 error(f"{err.__class__.__name__} grabbing '{device.name}' ({device.path})")
                 error(f"Grab attempt {loop_cnt} of {tries}. The error was:\n\t{err}")
             loop_cnt           += 1
             delay               = min(delay * 2, delay_max)   # exponential backoff strategy
+
         error(f"Device grab was tried {tries} times and failed. Maybe, another instance is running?")
         error(f"Continuing without device: '{device.name}' ({device.path})")
 
@@ -266,3 +349,5 @@ class DeviceFilter:
 
         # Exclude none keyboard devices
         return Devices.is_keyboard(device)
+
+# End of file #
