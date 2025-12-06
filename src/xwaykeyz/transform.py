@@ -3,7 +3,6 @@ import time
 import inspect
 
 from evdev import ecodes, InputEvent
-from typing import Dict, List
 
 from .config_api import (escape_next_key, escape_next_combo, ignore_key,
                             get_configuration, _ENVIRON, _REPEATING_KEYS)
@@ -21,9 +20,9 @@ from .models.modifier import Modifier
 from .models.modmap import Modmap, MultiModmap
 from .output import Output
 
-_MODMAPS: List[Modmap] = None
-_MULTI_MODMAPS: List[MultiModmap] = None
-_KEYMAPS: List[Keymap] = None
+_MODMAPS: list[Modmap] = None
+_MULTI_MODMAPS: list[MultiModmap] = None
+_KEYMAPS: list[Keymap] = None
 _TIMEOUTS = None
 
 def boot_config():
@@ -121,7 +120,7 @@ _last_suspend_timeout = 0
 #     _suspend_timer = None
 
 #     # keys = get_suspended_mods()
-#     states: List[Keystate] = [x for x in _key_states.values() if x.suspended]
+#     states: list[Keystate] = [x for x in _key_states.values() if x.suspended]
 #     if len(states) > 0:
 #         debug("resuming keys:", [x.key for x in states])
 
@@ -187,7 +186,7 @@ def resume_keys():
     _suspend_timer = None
 
     # keys = get_suspended_mods()
-    states: List[Keystate] = [x for x in _key_states.values() if x.suspended]
+    states: list[Keystate] = [x for x in _key_states.values() if x.suspended]
     if len(states) > 0:
         debug("resuming keys:", [x.key for x in states])
 
@@ -278,7 +277,7 @@ def suspend_keys(timeout):
     global _last_suspend_timeout
     debug("suspending keys:", pressed_mods_not_exerted_on_output())
     # Changing Keystate.is_pressed() to use property decorator, for consistency.
-    states: List[Keystate] = [x for x in _key_states.values() if x.key_is_pressed]
+    states: list[Keystate] = [x for x in _key_states.values() if x.key_is_pressed]
     for s in states:
         s.suspended = True
     # loop = asyncio.get_event_loop()
@@ -307,7 +306,7 @@ def dump_diagnostics():
 # ─── COMBO CONTEXT LOGGING ────────────────────────────────────────────────────────
 
 
-def log_combo_context(combo, ctx: KeyContext, keymap: Keymap, _active_keymaps: List[Keymap]):
+def log_combo_context(combo, ctx: KeyContext, keymap: Keymap, _active_keymaps: list[Keymap]):
     """Log context around usage of combo"""
     import textwrap
 
@@ -344,7 +343,7 @@ def apply_modmap(keystate: Keystate, ctx: KeyContext):
     # first modmap is always the default, unconditional
     active_modmap = _MODMAPS[0]
     # debug("active", active_modmap)
-    conditional_modmaps: List[Modmap] = _MODMAPS[1:]
+    conditional_modmaps: list[Modmap] = _MODMAPS[1:]
     # debug("conditionals", conditional_modmaps)
     if conditional_modmaps:
         for modmap in conditional_modmaps:
@@ -359,7 +358,7 @@ def apply_modmap(keystate: Keystate, ctx: KeyContext):
 
 def apply_multi_modmap(keystate: Keystate, ctx: KeyContext):
     active_multi_modmap = _MULTI_MODMAPS[0]
-    conditional_multimaps: List[MultiModmap] = _MULTI_MODMAPS[1:]
+    conditional_multimaps: list[MultiModmap] = _MULTI_MODMAPS[1:]
     if conditional_multimaps:
         for modmap in conditional_multimaps:
             if keystate.inkey in modmap:
