@@ -26,7 +26,7 @@ from .logger import error, debug
 # matching specific provider class suitable for the environment.
 
 
-NO_CONTEXT_WAS_ERROR = {"wm_class": "", "wm_name": "", "x_error": True}
+NO_CONTEXT_WAS_ERROR = {"wm_class": "", "wm_name": "", "wndw_ctxt_error": True}
 
 
 class WindowContextProviderInterface(abc.ABC):
@@ -79,11 +79,11 @@ class WindowContextProviderInterface(abc.ABC):
 
         - "wm_class": The class of the window.
         - "wm_name": The name of the window.
-        - "x_error": A boolean indicating whether there was an error 
+        - "wndw_ctxt_error": A boolean indicating whether there was an error 
             in obtaining the window's context.
 
         The "wm_class" and "wm_name" values are expected to be strings.
-        The "x_error" value is expected to be a boolean, which should 
+        The "wndw_ctxt_error" value is expected to be a boolean, which should 
         be False if the window's context was successfully obtained, 
         and True otherwise.
 
@@ -92,13 +92,13 @@ class WindowContextProviderInterface(abc.ABC):
         {
             "wm_class": "ExampleClass",
             "wm_name": "ExampleName",
-            "x_error": False
+            "wndw_ctxt_error": False
         }
 
         In case of an error, the method should return NO_CONTEXT_WAS_ERROR, 
         which is a predefined global variable "constant":
 
-        NO_CONTEXT_WAS_ERROR = {"wm_class": "", "wm_name": "", "x_error": True}
+        NO_CONTEXT_WAS_ERROR = {"wm_class": "", "wm_name": "", "wndw_ctxt_error": True}
 
         :returns: A dictionary containing window context information.
         """
@@ -200,7 +200,7 @@ class Wl_Pantheon_WindowContext(WindowContextProviderInterface):
                 return {
                     "wm_class": 'ERR_No_Focused_Window', 
                     "wm_name": 'ERR_No_Focused_Window', 
-                    "x_error": False
+                    "wndw_ctxt_error": False
                 }
 
         except self.DBusException as dbus_error:
@@ -219,7 +219,7 @@ class Wl_Pantheon_WindowContext(WindowContextProviderInterface):
 
         debug(f"PANTHEON_CTX: Using D-Bus interface '{self.gala_dbus_obj}' for window context", ctx='CX')
 
-        return {"wm_class": self.wm_class or self.app_id, "wm_name": self.title, "x_error": False}
+        return {"wm_class": self.wm_class or self.app_id, "wm_name": self.title, "wndw_ctxt_error": False}
 
 
 class Wl_COSMIC_WindowContext(WindowContextProviderInterface):
@@ -300,7 +300,7 @@ class Wl_COSMIC_WindowContext(WindowContextProviderInterface):
 
         debug(f"COSMIC_DBUS_SVC: Using D-Bus interface '{self.toshy_dbus_obj}' for window context", ctx='CX')
 
-        return {"wm_class": self.app_id, "wm_name": self.title, "x_error": False}
+        return {"wm_class": self.app_id, "wm_name": self.title, "wndw_ctxt_error": False}
 
 
 class Wl_Wlroots_WindowContext(WindowContextProviderInterface):
@@ -390,7 +390,7 @@ class Wl_Wlroots_WindowContext(WindowContextProviderInterface):
 
         debug(f"WLR_DBUS_SVC: Using D-Bus interface '{self.toshy_dbus_obj}' for window context", ctx='CX')
 
-        return {"wm_class": self.app_id, "wm_name": self.title, "x_error": False}
+        return {"wm_class": self.app_id, "wm_name": self.title, "wndw_ctxt_error": False}
 
 
 class Wl_sway_WindowContext(WindowContextProviderInterface):
@@ -443,7 +443,7 @@ class Wl_sway_WindowContext(WindowContextProviderInterface):
         self.wm_name            = focused_wdw.name or 'sway-ctx-error' # use fallback for window_title below if necessary
         # self.wm_name            = focused_wdw.name or focused_wdw.window_title or 'sway-ctx-error'
 
-        return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
+        return {"wm_class": self.wm_class, "wm_name": self.wm_name, "wndw_ctxt_error": False}
 
     def get_window_context(self):
         """Return window context to KeyContext"""
@@ -477,11 +477,11 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
             debug(f"CTX_HYPR: Using 'hyprpy' for window context.", ctx='CX')
             self.wm_class       = window_info.wm_class
             self.wm_name        = window_info.title
-            return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
+            return {"wm_class": self.wm_class, "wm_name": self.wm_name, "wndw_ctxt_error": False}
         except Exception as e:
             if "validation errors for WindowData" in str(e):
                 debug('No active window found or incomplete window data.')
-                return  {"wm_class": "hyprpy_no_window", "wm_name": "hyprpy_no_window", "x_error": False}
+                return  {"wm_class": "hyprpy_no_window", "wm_name": "hyprpy_no_window", "wndw_ctxt_error": False}
             else:
                 error(f"ERROR: Problem getting active window context using 'hyprpy'.\n\t{e}")
                 return self.get_active_wdw_ctx_hypr_ipc()
@@ -517,16 +517,16 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
             # Check if the response is empty or not valid JSON
             if not wdw_info_str.strip():
                 debug('No active window found or empty response from Hyprland IPC.')
-                return {"wm_class": "hypr_no_window", "wm_name": "hypr_no_window", "x_error": False}
+                return {"wm_class": "hypr_no_window", "wm_name": "hypr_no_window", "wndw_ctxt_error": False}
 
             window_info: dict   = json.loads(wdw_info_str) # Type hint for VSCode "get()" highlight
             self.wm_class       = window_info.get("class", "hypr-context-error")
             self.wm_name        = window_info.get("title", "hypr-context-error")
-            return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
+            return {"wm_class": self.wm_class, "wm_name": self.wm_name, "wndw_ctxt_error": False}
 
         except json.JSONDecodeError as json_err:
             debug(f'No active window found or empty response from Hyprland IPC.\n\t{json_err}')
-            return {"wm_class": "hyprIPC_no_window", "wm_name": "hyprIPC_no_window", "x_error": False}
+            return {"wm_class": "hyprIPC_no_window", "wm_name": "hyprIPC_no_window", "wndw_ctxt_error": False}
         except (socket.error, OSError) as ctx_err:
             error(f'ERROR: Problem getting window context via Hyprland IPC socket:\n\t{ctx_err}')
             # Close the socket
@@ -548,10 +548,10 @@ class Wl_Hyprland_WindowContext(WindowContextProviderInterface):
             self.wm_class       = window_info.get("class", "hypr-context-error")
             self.wm_name        = window_info.get("title", "hypr-context-error")
             debug(f'CTX_HYPR: Using shell command (hyprctl) for window context (FALLBACK!).', ctx='CX')
-            return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
+            return {"wm_class": self.wm_class, "wm_name": self.wm_name, "wndw_ctxt_error": False}
         except json.JSONDecodeError as json_err:
             debug(f'No active window found or empty response from "hyprctl".\n\t{json_err}')
-            return {"wm_class": "hyprctl_no_window", "wm_name": "hyprctl_no_window", "x_error": False}
+            return {"wm_class": "hyprctl_no_window", "wm_name": "hyprctl_no_window", "wndw_ctxt_error": False}
         except subprocess.CalledProcessError as proc_err:
             error(f"ERROR: Problem getting window context with hyprctl:\n\t{proc_err}")
             return NO_CONTEXT_WAS_ERROR
@@ -640,7 +640,7 @@ class Wl_KWin_WindowContext(WindowContextProviderInterface):
 
         debug(f"KDE_DBUS_SVC: Using D-Bus interface '{self.toshy_dbus_obj}' for window context", ctx='CX')
 
-        return {"wm_class": self.wm_class, "wm_name": self.wm_name, "x_error": False}
+        return {"wm_class": self.wm_class, "wm_name": self.wm_name, "wndw_ctxt_error": False}
 
 
 class Wl_Cinnamon_WindowContext(WindowContextProviderInterface):
@@ -686,7 +686,7 @@ class Wl_Cinnamon_WindowContext(WindowContextProviderInterface):
             return NO_CONTEXT_WAS_ERROR
 
         debug(f"CINN_EXT: Using 'Toshy Focused Window Info' extension for window context.", ctx='CX')
-        return {"wm_class": wm_class, "wm_name": wm_name, "x_error": False}
+        return {"wm_class": wm_class, "wm_name": wm_name, "wndw_ctxt_error": False}
 
 
 class Wl_GNOME_WindowContext(WindowContextProviderInterface):
@@ -830,7 +830,7 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
             if 'No window in focus' in str(dbus_error): pass
             else: raise   # pass on the original exception if not 'No window in focus'
 
-        return {"wm_class": wm_class, "wm_name": wm_name, "x_error": False}
+        return {"wm_class": wm_class, "wm_name": wm_name, "wndw_ctxt_error": False}
 
     def get_wl_gnome_dbus_windowsext_context(self):
         """utility function to query the 'Window Calls Extended' extension"""
@@ -840,7 +840,7 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
         wm_class            = str(self.iface_windowsext.FocusClass())
         wm_name             = str(self.iface_windowsext.FocusTitle())
 
-        return {"wm_class": wm_class, "wm_name": wm_name, "x_error": False}
+        return {"wm_class": wm_class, "wm_name": wm_name, "wndw_ctxt_error": False}
 
     def get_wl_gnome_dbus_xremap_context(self):
         """utility function to query the 'Xremap' extension"""
@@ -858,7 +858,7 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
         wm_class            = active_window_dct.get('wm_class', '')
         wm_name             = active_window_dct.get('title', '')
 
-        return {"wm_class": wm_class, "wm_name": wm_name, "x_error": False}
+        return {"wm_class": wm_class, "wm_name": wm_name, "wndw_ctxt_error": False}
 
 
 class Xorg_WindowContext(WindowContextProviderInterface):
@@ -929,7 +929,7 @@ class Xorg_WindowContext(WindowContextProviderInterface):
             
             debug(f"CTX_X11: Using Xlib for window context", ctx='CX')
 
-            return {"wm_class": wm_class, "wm_name": wm_name, "x_error": False}
+            return {"wm_class": wm_class, "wm_name": wm_name, "wndw_ctxt_error": False}
 
         except self.ConnectionClosedError as xerror:
             error(xerror)

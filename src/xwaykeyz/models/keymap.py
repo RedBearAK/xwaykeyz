@@ -10,5 +10,5 @@ class Keymap:
     def __getitem__(self, item):
         return self.mappings[item]
 
-    def matches(self, context):
-        return self.conditional is None or self.conditional(context)
+    def matches(self, ctx):
+        return self.conditional is None or self.conditional(ctx)

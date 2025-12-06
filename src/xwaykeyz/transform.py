@@ -40,7 +40,7 @@ def boot_config():
 
 _active_keymaps = None
 _output = Output()
-_key_states: Dict[Key, Keystate] = {}
+_key_states: dict[Key, Keystate] = {}
 _sticky = {}
 
 
@@ -338,7 +338,7 @@ _last_key = None
 
 
 # translate keycode (like xmodmap)
-def apply_modmap(keystate: Keystate, context: KeyContext):
+def apply_modmap(keystate: Keystate, ctx: KeyContext):
     inkey = keystate.inkey
     keystate.key = inkey
     # first modmap is always the default, unconditional
@@ -349,7 +349,7 @@ def apply_modmap(keystate: Keystate, context: KeyContext):
     if conditional_modmaps:
         for modmap in conditional_modmaps:
             if inkey in modmap:
-                if modmap.conditional(context):
+                if modmap.conditional(ctx):
                     active_modmap = modmap
                     break
     if active_modmap and inkey in active_modmap:
@@ -357,13 +357,13 @@ def apply_modmap(keystate: Keystate, context: KeyContext):
         keystate.key = active_modmap[inkey]
 
 
-def apply_multi_modmap(keystate: Keystate, context: KeyContext):
+def apply_multi_modmap(keystate: Keystate, ctx: KeyContext):
     active_multi_modmap = _MULTI_MODMAPS[0]
     conditional_multimaps: List[MultiModmap] = _MULTI_MODMAPS[1:]
     if conditional_multimaps:
         for modmap in conditional_multimaps:
             if keystate.inkey in modmap:
-                if modmap.conditional(context):
+                if modmap.conditional(ctx):
                     active_multi_modmap = modmap
                     break
 
@@ -389,12 +389,12 @@ def find_keystate_or_new(inkey, action):
     if inkey not in _key_states:
         return Keystate(inkey=inkey, action=action)
 
-    ks: Keystate = _key_states[inkey]
-    ks.prior = ks.copy()
-    delattr(ks.prior, "prior")
-    ks.action = action
-    ks.time = time
-    return ks
+    keystate: Keystate = _key_states[inkey]
+    keystate.prior = keystate.copy()
+    delattr(keystate.prior, "prior")
+    keystate.action = action
+    keystate.time = time
+    return keystate
 
 
 # ─── KEYBOARD INPUT PROCESSING PIPELINE ─────────────────────────────────────────
@@ -452,7 +452,7 @@ def on_event(event: InputEvent, device):
         return
 
     # Give KeyContext the device and window context objects
-    context                     = KeyContext(device, window_context)
+    ctx                         = KeyContext(device, window_context)
     action                      = Action(event.value)
     key                         = Key(event.code)
 
@@ -467,20 +467,20 @@ def on_event(event: InputEvent, device):
     # if there is an X error (we don't have any window context)
     # then we turn off all mappings until it's resolved and act
     # more or less as a pass thru for all input => output
-    if context.x_error:
+    if ctx.wndw_ctxt_error:
         ks.key = ks.key or ks.inkey
 
     # we only do modmap on the PRESS pass, keys may not
     # redefine themselves midstream while repeating or
     # as they are lifted
     if not ks.key:
-        apply_modmap(ks, context)
-        apply_multi_modmap(ks, context)
+        apply_modmap(ks, ctx)
+        apply_multi_modmap(ks, ctx)
 
-    on_key(ks, context)
+    on_key(ks, ctx)
 
 
-def on_mod_key(keystate: Keystate, context):
+def on_mod_key(keystate: Keystate, ctx):
     hold_output = False
     should_suspend = False
 
@@ -524,7 +524,7 @@ def on_mod_key(keystate: Keystate, context):
             keystate.exerted_on_output = False
 
 
-def on_key(keystate: Keystate, context):
+def on_key(keystate: Keystate, ctx):
     global _last_key
 
     key, action = (keystate.key, keystate.action)
@@ -559,7 +559,7 @@ def on_key(keystate: Keystate, context):
 
     # Continue with normal processing...
     if Modifier.is_key_modifier(key):
-        on_mod_key(keystate, context)
+        on_mod_key(keystate, ctx)
 
     # Changed just_pressed to use property decorator, for consistency.
     elif keystate.is_multi and action.just_pressed:
@@ -593,13 +593,13 @@ def on_key(keystate: Keystate, context):
                 debug(f"Resolved multi-key {keystate.inkey.name} as {keystate.key.name} (tap)")
                 keystate.resolve_as_momentary()
             resume_keys()
-            transform_key(key, action, context)
+            transform_key(key, action, ctx)
             # update_pressed_states(keystate)
         # Moved this out of "if keystate.is_multi" block to ensure always resetting keystate
         update_pressed_states(keystate)
     else:
         # not a modifier or a multi-key, so pass straight to transform
-        transform_key(key, action, context)
+        transform_key(key, action, ctx)
 
     # Changed just_pressed to use property decorator, for consistency.
     if action.just_pressed:
@@ -613,7 +613,7 @@ def transform_key(key, action: Action, ctx: KeyContext):
     # if we do not have window context information we essentially short-circuit
     # the keymapper, acting in essentially a pass thru mode sending what is
     # typed straight thru from input to output
-    if ctx.x_error:
+    if ctx.wndw_ctxt_error:
         resume_keys()
         _output.send_key_action(key, action)
         return
@@ -693,8 +693,8 @@ def simple_sticky(combo: Combo, output_combo: Combo):
     outkey = outmods[0].get_key()
 
     if inkey in _key_states:
-        ks: Keystate = _key_states[inkey]
-        if ks.exerted_on_output:
+        keystate = _key_states[inkey]
+        if keystate.exerted_on_output:
             key_in_output = any([inkey in mod.keys for mod in outmods])
             if not key_in_output:
                 # we are replacing the input key with the bound outkey, so if
@@ -704,7 +704,7 @@ def simple_sticky(combo: Combo, output_combo: Combo):
                 # the sticky out key from output, but that is currently handled
                 # by `_sticky` in `on_key`
                 # TODO: this state info should likely move into `KeyState`
-                ks.exerted_on_output = False
+                keystate.exerted_on_output = False
 
     stuck = {inkey: outkey}
     debug("BIND:", stuck)

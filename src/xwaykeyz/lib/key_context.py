@@ -27,9 +27,9 @@ class KeyContext:
         return self._X_ctx["wm_name"] or "ERR: KeyContext: NoneType in wm_name"
 
     @property
-    def x_error(self):
+    def wndw_ctxt_error(self):
         self._query_window_context()
-        return self._X_ctx["x_error"]
+        return self._X_ctx["wndw_ctxt_error"]
 
     @property
     def device_name(self):

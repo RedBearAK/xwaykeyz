@@ -584,7 +584,7 @@ Use the `xprop` command from a terminal:
 
 ...then click an application window.
 
-Use the second `WM_CLASS` value (in this case `Google-chrome`) when matching `context.wm_class`.
+Use the second `WM_CLASS` value (in this case `Google-chrome`) when matching `ctx.wm_class`.
 
 
 #### Example of Case Insensitive Matching
