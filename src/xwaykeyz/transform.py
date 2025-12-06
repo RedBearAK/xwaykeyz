@@ -483,11 +483,14 @@ def on_mod_key(keystate: Keystate, context):
 
     key, action = (keystate.key, keystate.action)
 
-    if action.is_pressed():
+    # if action.is_pressed():
+    # Changing is_pressed to use a property decorator, for consistentcy.
+    if action.is_pressed:
         if none_pressed():
             should_suspend = True
 
-    elif action.is_released():
+    # Changing is_released to use a property decorator, for consistentcy.
+    elif action.is_released:
         if is_sticky(key):
             outkey = _sticky[key]
             debug(f"lift of BIND {key} => {outkey}")
@@ -508,12 +511,14 @@ def on_mod_key(keystate: Keystate, context):
     if should_suspend or is_suspended():
         keystate.suspended = True
         hold_output = True
-        if action.just_pressed():
+        # Changed just_pressed to use property decorator, for consistency.
+        if action.just_pressed:
             suspend_or_resuspend_keys(_TIMEOUTS["suspend"])
 
     if not hold_output:
         _output.send_key_action(key, action)
-        if action.is_released():
+        # Changing is_released to use a property decorator, for consistentcy.
+        if action.is_released:
             keystate.exerted_on_output = False
 
 
@@ -532,7 +537,8 @@ def on_key(keystate: Keystate, context):
     # When ANY key is pressed, check if we have suspended multikeys
     # and resolve them immediately as modifiers
     # ──────────────────────────────────────────────────────────────────────────
-    if action.just_pressed() and not keystate.is_multi:
+    # Changed just_pressed to use property decorator, for consistency.
+    if action.just_pressed and not keystate.is_multi:
         for ks in _key_states.values():
             if ks.is_multi and ks.suspended and ks.is_pressed():
                 # debug(f"Resolving {ks.key} as modifier due to {key} press")
@@ -552,7 +558,8 @@ def on_key(keystate: Keystate, context):
     if Modifier.is_key_modifier(key):
         on_mod_key(keystate, context)
 
-    elif keystate.is_multi and action.just_pressed():
+    # Changed just_pressed to use property decorator, for consistency.
+    elif keystate.is_multi and action.just_pressed:
         # debug("multi pressed", key)
         keystate.suspended = True
         keystate.other_key_pressed_while_held = False  # Initialize flag
@@ -564,7 +571,8 @@ def on_key(keystate: Keystate, context):
         # do nothing
 
     # regular key releases, not modifiers (though possibly a multi-mod)
-    elif action.is_released():
+    # Changing is_released to use a property decorator, for consistentcy.
+    elif action.is_released:
         if _output.is_pressed(key):
             _output.send_key_action(key, action)
         if keystate.is_multi:
@@ -590,7 +598,8 @@ def on_key(keystate: Keystate, context):
         # not a modifier or a multi-key, so pass straight to transform
         transform_key(key, action, context)
 
-    if action.just_pressed():
+    # Changed just_pressed to use property decorator, for consistency.
+    if action.just_pressed:
         _last_key = key
 
 
@@ -617,9 +626,11 @@ def transform_key(key, action: Action, ctx: KeyContext):
     # New version of `escape_next_key` that doesn't strip out modifiers from next combo.
     # We need this to wait for a non-modifier key, then send through the unremapped combo (or key).
     # More complicated than just escaping the very next normal key press.
+    
     if _active_keymaps is escape_next_combo:
         # Ignore modifier keys and releases - wait for next actual keypress
-        if Modifier.is_key_modifier(key) or action.is_released():
+        # Changing is_released to use a property decorator, for consistentcy.
+        if Modifier.is_key_modifier(key) or action.is_released:
             _output.send_key_action(key, action)
             return  # Stay in escape mode, don't consume the flag
         

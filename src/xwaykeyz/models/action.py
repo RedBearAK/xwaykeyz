@@ -6,12 +6,15 @@ class Action(IntEnum):
 
     RELEASE, PRESS, REPEAT = range(3)
 
+    @property
     def is_pressed(self):
         return self == Action.PRESS or self == Action.REPEAT
 
+    @property
     def just_pressed(self):
         return self == Action.PRESS
 
+    @property
     def is_released(self):
         return self == Action.RELEASE
 
@@ -23,6 +26,6 @@ class Action(IntEnum):
         return self.name.lower()
 
 
-PRESS = Action.PRESS
-RELEASE = Action.RELEASE
-REPEAT = Action.REPEAT
+PRESS                           = Action.PRESS
+RELEASE                         = Action.RELEASE
+REPEAT                          = Action.REPEAT
