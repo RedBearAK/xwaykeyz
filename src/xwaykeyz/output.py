@@ -3,7 +3,7 @@ from evdev import ecodes
 from evdev.uinput import UInput
 
 from .lib.logger import debug
-from .models.action import PRESS, RELEASE
+from .models.action import PRESS, RELEASE, Action
 from .models.combo import Combo
 from .models.modifier import Modifier
 from .config_api import _THROTTLES
@@ -84,16 +84,24 @@ class Output:
         self._suspend_depth = 0
 
     def __update_pressed_modifier_keys(self, key, action):
+        if not isinstance(action, Action):
+            raise TypeError(f'Expected type Action, received {type(action)}.')
+
         if not Modifier.is_key_modifier(key):
             return
 
-        if action.is_pressed():
+        # Changing is_pressed to use property decorator, for consistency
+        if action.is_pressed:
             self._pressed_modifier_keys.add(key)
         else:
             self._pressed_modifier_keys.discard(key)
 
     def __update_pressed_keys(self, key, action):
-        if action.is_pressed():
+        if not isinstance(action, Action):
+            raise TypeError(f'Expected type Action, received {type(action)}.')
+
+        # Changing is_pressed to use property decorator, for consistency
+        if action.is_pressed:
             self._pressed_keys.add(key)
         else:
             self._pressed_keys.discard(key)
