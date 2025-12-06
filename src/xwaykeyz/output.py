@@ -122,7 +122,9 @@ class Output:
     def is_mod_pressed(self, key):
         return key in self._pressed_modifier_keys
 
-    def is_pressed(self, key):
+    # Renamed from "is_pressed" to reduce naming 
+    # redundancy with Action, Keystate properties.
+    def is_key_pressed(self, key):
         return key in self._pressed_keys
 
     def send_event(self, event):
@@ -279,6 +281,8 @@ class SuspendWhenLifting:
     """
 
     def __init__(self, output):
+        if not isinstance(output, Output):
+            raise TypeError(f'Expected type Output, received {type(output)}.')
         self._output = output
 
     def __enter__(self):

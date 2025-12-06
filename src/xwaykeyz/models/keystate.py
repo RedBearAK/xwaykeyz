@@ -33,8 +33,13 @@ class Keystate:
     def copy(self):
         return replace(self)
 
-    def is_pressed(self):
-        return self.action == Action.PRESS or self.action == Action.REPEAT
+    # Renamed from "is_pressed" to reduce naming 
+    # overlap with Action.is_pressed property.
+    @property
+    def key_is_pressed(self):
+        # return self.action == Action.PRESS or self.action == Action.REPEAT
+        # Use central "source of truth" in Action for whether key is pressed.
+        return self.action.is_pressed
 
     def resolve_as_momentary(self):
         # self.key = self.key # NOP

@@ -66,13 +66,15 @@ def none_pressed():
 
 
 def get_pressed_mods():
-    keys = [x.key for x in _key_states.values() if x.is_pressed()]
+    # Changing Keystate.is_pressed() to use property decorator, for consistency.
+    keys = [x.key for x in _key_states.values() if x.key_is_pressed]
     keys = [x for x in keys if Modifier.is_key_modifier(x)]
     return [Modifier.from_key(key) for key in keys]
 
 
 def get_pressed_states():
-    return [x for x in _key_states.values() if x.is_pressed()]
+    # Changing Keystate.is_pressed() to use property decorator, for consistency.
+    return [x for x in _key_states.values() if x.key_is_pressed]
 
 
 def is_sticky(key):
@@ -275,7 +277,8 @@ def suspend_keys(timeout):
     global _suspend_timer
     global _last_suspend_timeout
     debug("suspending keys:", pressed_mods_not_exerted_on_output())
-    states: List[Keystate] = [x for x in _key_states.values() if x.is_pressed()]
+    # Changing Keystate.is_pressed() to use property decorator, for consistency.
+    states: List[Keystate] = [x for x in _key_states.values() if x.key_is_pressed]
     for s in states:
         s.suspended = True
     # loop = asyncio.get_event_loop()
@@ -483,13 +486,12 @@ def on_mod_key(keystate: Keystate, context):
 
     key, action = (keystate.key, keystate.action)
 
-    # if action.is_pressed():
     # Changing is_pressed to use a property decorator, for consistentcy.
     if action.is_pressed:
         if none_pressed():
             should_suspend = True
 
-    # Changing is_released to use a property decorator, for consistentcy.
+    # Changing Action.is_released() to use a property decorator, for consistentcy.
     elif action.is_released:
         if is_sticky(key):
             outkey = _sticky[key]
@@ -517,7 +519,7 @@ def on_mod_key(keystate: Keystate, context):
 
     if not hold_output:
         _output.send_key_action(key, action)
-        # Changing is_released to use a property decorator, for consistentcy.
+        # Changing Action.is_released() to use a property decorator, for consistentcy.
         if action.is_released:
             keystate.exerted_on_output = False
 
@@ -540,7 +542,8 @@ def on_key(keystate: Keystate, context):
     # Changed just_pressed to use property decorator, for consistency.
     if action.just_pressed and not keystate.is_multi:
         for ks in _key_states.values():
-            if ks.is_multi and ks.suspended and ks.is_pressed():
+            # Changing Keystate.is_pressed() to use a property decorator, for consistentcy.
+            if ks.is_multi and ks.suspended and ks.key_is_pressed:
                 # debug(f"Resolving {ks.key} as modifier due to {key} press")
 
                 mod_name = Modifier.get_modifier_name(ks.multikey)
@@ -571,9 +574,9 @@ def on_key(keystate: Keystate, context):
         # do nothing
 
     # regular key releases, not modifiers (though possibly a multi-mod)
-    # Changing is_released to use a property decorator, for consistentcy.
+    # Changing Action.is_released() to use a property decorator, for consistentcy.
     elif action.is_released:
-        if _output.is_pressed(key):
+        if _output.is_key_pressed(key):
             _output.send_key_action(key, action)
         if keystate.is_multi:
             # debug("multi released early", key)
@@ -629,7 +632,7 @@ def transform_key(key, action: Action, ctx: KeyContext):
     
     if _active_keymaps is escape_next_combo:
         # Ignore modifier keys and releases - wait for next actual keypress
-        # Changing is_released to use a property decorator, for consistentcy.
+        # Changing Action.is_released() to use a property decorator, for consistentcy.
         if Modifier.is_key_modifier(key) or action.is_released:
             _output.send_key_action(key, action)
             return  # Stay in escape mode, don't consume the flag
