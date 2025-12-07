@@ -387,8 +387,10 @@ def on_event(event: InputEvent, device):
 
     # For repeats/releases of known keys, skip expensive window context query
     if (action.is_released or action.is_repeat) and keystate.key is not None:
+        debug(f"Using cached context for {key} ({action}), keystate.key={keystate.key}")
         ctx = KeyContext.from_cache(device, keystate.wndw_ctxt_error_on_press)
     else:
+        debug(f"Creating fresh context for {key} ({action}), keystate.key={keystate.key}")
         ctx = KeyContext(device, window_context)
         # Cache error state on press for later release/repeat events
         if action.just_pressed:
