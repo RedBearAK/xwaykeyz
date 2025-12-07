@@ -76,6 +76,10 @@ def setup_uinput(uinput=None):
     _uinput = uinput or real_uinput()
 
 
+_THROTTLE_MIN_PRE_MS = 2
+_THROTTLE_MIN_POST_MS = 3
+
+
 class Output:
     def __init__(self):
         self._pressed_modifier_keys = set()
@@ -152,7 +156,7 @@ class Output:
         if not isinstance(action, Action):
             raise TypeError(f'Expected type Action, received {type(action)}.')
 
-        sleep_ms(_THROTTLES['key_pre_delay_ms'])
+        sleep_ms(_THROTTLES['key_pre_delay_ms'] + _THROTTLE_MIN_PRE_MS)
 
         self.__update_pressed_modifier_keys(key, action)
         self.__update_pressed_keys(key, action)
@@ -164,7 +168,29 @@ class Output:
 
         self.__send_sync()
 
-        sleep_ms(_THROTTLES['key_post_delay_ms'])
+        sleep_ms(_THROTTLES['key_post_delay_ms'] + _THROTTLE_MIN_POST_MS)
+
+        # Visual terminator when all output keys are released
+        if action.is_released and len(self._pressed_keys) == 0:
+            debug("──────────", ctx="==")
+
+    def send_key_action_fast(self, key, action):
+        if not isinstance(action, Action):
+            raise TypeError(f'Expected type Action, received {type(action)}.')
+
+        sleep_ms(_THROTTLE_MIN_PRE_MS)
+
+        self.__update_pressed_modifier_keys(key, action)
+        self.__update_pressed_keys(key, action)
+        _uinput.write(ecodes.EV_KEY, key, action)
+
+        mod_name = Modifier.get_modifier_name(key)
+        mod_suffix = f" ({mod_name} mod)" if mod_name else ""
+        debug(action, f"{key}{mod_suffix}", time.time(), ctx="OO")
+
+        self.__send_sync()
+
+        sleep_ms(_THROTTLE_MIN_POST_MS)
 
         # Visual terminator when all output keys are released
         if action.is_released and len(self._pressed_keys) == 0:
