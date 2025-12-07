@@ -132,17 +132,39 @@ class Output:
         # TODO: do we need this? I think not.
         # self.__send_sync()
 
-    def send_key_action(self, key, action: Action):
+    # def send_key_action(self, key, action: Action):
+    #     self.__update_pressed_modifier_keys(key, action)
+    #     self.__update_pressed_keys(key, action)
+    #     _uinput.write(ecodes.EV_KEY, key, action)
+    #     # debug(action, key, time.time(), ctx="OO")
+
+    #     mod_name = Modifier.get_modifier_name(key)
+    #     mod_suffix = f" ({mod_name} mod)" if mod_name else ""
+    #     debug(action, f"{key}{mod_suffix}", time.time(), ctx="OO")
+
+    #     self.__send_sync()
+
+    #     # Visual terminator when all output keys are released
+    #     if action.is_released and len(self._pressed_keys) == 0:
+    #         debug("──────────", ctx="==")
+
+    def send_key_action(self, key, action):
+        if not isinstance(action, Action):
+            raise TypeError(f'Expected type Action, received {type(action)}.')
+
+        sleep_ms(_THROTTLES['key_pre_delay_ms'])
+
         self.__update_pressed_modifier_keys(key, action)
         self.__update_pressed_keys(key, action)
         _uinput.write(ecodes.EV_KEY, key, action)
-        # debug(action, key, time.time(), ctx="OO")
 
         mod_name = Modifier.get_modifier_name(key)
         mod_suffix = f" ({mod_name} mod)" if mod_name else ""
         debug(action, f"{key}{mod_suffix}", time.time(), ctx="OO")
 
         self.__send_sync()
+
+        sleep_ms(_THROTTLES['key_post_delay_ms'])
 
         # Visual terminator when all output keys are released
         if action.is_released and len(self._pressed_keys) == 0:
@@ -202,37 +224,61 @@ class Output:
         #############################################################################################
 
 
+        # for key in reversed(list(mod_keys_we_need_to_lift)):
+        #     sleep_ms(_THROTTLES['key_pre_delay_ms'])
+        #     self.send_key_action(key, RELEASE)
+        #     sleep_ms(_THROTTLES['key_post_delay_ms'])
+        #     released_mod_keys.append(key)
+
+        # for key in [mod.get_key() for mod in mods_we_need_to_press]:
+        #     sleep_ms(_THROTTLES['key_pre_delay_ms'])
+        #     self.send_key_action(key, PRESS)
+        #     sleep_ms(_THROTTLES['key_post_delay_ms'])
+        #     pressed_mod_keys.append(key)
+
+        # # normal key portion of the combo
+        # sleep_ms(_THROTTLES['key_pre_delay_ms'])
+        # self.send_key_action(combo.key, PRESS)
+        # sleep_ms(6)
+        # self.send_key_action(combo.key, RELEASE)
+        # sleep_ms(_THROTTLES['key_post_delay_ms'])
+
+        # for modifier in reversed(pressed_mod_keys):
+        #     sleep_ms(_THROTTLES['key_pre_delay_ms'])
+        #     self.send_key_action(modifier, RELEASE)
+        #     sleep_ms(_THROTTLES['key_post_delay_ms'])
+
+        # if self.__is_suspending():  # sleep the keys
+        #     self._suspended_mod_keys.extend(released_mod_keys)
+        # else:  # reassert the keys
+        #     for modifier in reversed(released_mod_keys):
+        #         sleep_ms(_THROTTLES['key_pre_delay_ms'])
+        #         self.send_key_action(modifier, PRESS)
+        #         sleep_ms(_THROTTLES['key_post_delay_ms'])
+
+
+        # Moved throttle delays into send_key_action() above.
+
         for key in reversed(list(mod_keys_we_need_to_lift)):
-            sleep_ms(_THROTTLES['key_pre_delay_ms'])
             self.send_key_action(key, RELEASE)
-            sleep_ms(_THROTTLES['key_post_delay_ms'])
             released_mod_keys.append(key)
 
         for key in [mod.get_key() for mod in mods_we_need_to_press]:
-            sleep_ms(_THROTTLES['key_pre_delay_ms'])
             self.send_key_action(key, PRESS)
-            sleep_ms(_THROTTLES['key_post_delay_ms'])
             pressed_mod_keys.append(key)
 
         # normal key portion of the combo
-        sleep_ms(_THROTTLES['key_pre_delay_ms'])
         self.send_key_action(combo.key, PRESS)
-        sleep_ms(6)
         self.send_key_action(combo.key, RELEASE)
-        sleep_ms(_THROTTLES['key_post_delay_ms'])
 
         for modifier in reversed(pressed_mod_keys):
-            sleep_ms(_THROTTLES['key_pre_delay_ms'])
             self.send_key_action(modifier, RELEASE)
-            sleep_ms(_THROTTLES['key_post_delay_ms'])
 
-        if self.__is_suspending():  # sleep the keys
+        if self.__is_suspending():
             self._suspended_mod_keys.extend(released_mod_keys)
-        else:  # reassert the keys
+        else:
             for modifier in reversed(released_mod_keys):
-                sleep_ms(_THROTTLES['key_pre_delay_ms'])
                 self.send_key_action(modifier, PRESS)
-                sleep_ms(_THROTTLES['key_post_delay_ms'])
 
     def send_key(self, key):
         self.send_combo(Combo(None, key))
