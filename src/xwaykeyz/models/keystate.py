@@ -34,8 +34,6 @@ class Keystate:
     # Track if any other key was pressed while this multikey was held
     # Used for event-based tap-vs-hold decision making
     other_key_pressed_while_held: bool  = False
-    # Cache window context error state from press for release/repeat events
-    wndw_ctxt_error_on_press: bool      = False
 
     def copy(self):
         return replace(self)

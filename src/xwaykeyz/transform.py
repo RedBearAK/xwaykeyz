@@ -350,13 +350,15 @@ session_type    = _ENVIRON['session_type']
 wl_compositor   = _ENVIRON['wl_compositor']
 
 from .lib.window_context import WindowContextProvider
-window_context = WindowContextProvider(session_type, wl_compositor)
+window_context                  = WindowContextProvider(session_type, wl_compositor)
+_last_press_wndw_ctxt_error     = False
 
 ignore_repeating_keys = _REPEATING_KEYS['ignore_repeating_keys']
 
 
 # @benchit
 def on_event(event: InputEvent, device):
+    global _last_press_wndw_ctxt_error
 
     # we do not attempt to transform non-key events
     # or any events with no device (startup key-presses)
@@ -386,15 +388,15 @@ def on_event(event: InputEvent, device):
     keystate = find_keystate_or_new(inkey=key, action=action)
 
     # For repeats/releases of known keys, skip expensive window context query
-    if (action.is_released or action.is_repeat) and keystate.key is not None:
-        debug(f"Using cached context for {key} ({action}), keystate.key={keystate.key}")
-        ctx = KeyContext.from_cache(device, keystate.wndw_ctxt_error_on_press)
+    if (action.is_released or action.is_repeat):
+        # debug(f"Using cached context for {key} ({action}), keystate.key={keystate.key}")
+        ctx = KeyContext.from_cache(device, _last_press_wndw_ctxt_error)
     else:
-        debug(f"Creating fresh context for {key} ({action}), keystate.key={keystate.key}")
+        # debug(f"Creating fresh context for {key} ({action}), keystate.key={keystate.key}")
         ctx = KeyContext(device, window_context)
         # Cache error state on press for later release/repeat events
         if action.just_pressed:
-            keystate.wndw_ctxt_error_on_press = ctx.wndw_ctxt_error
+            _last_press_wndw_ctxt_error = ctx.wndw_ctxt_error
 
     debug()
     debug(f"in {key} ({action})", ctx="II")
