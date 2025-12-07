@@ -615,7 +615,9 @@ def transform_key(key, action: Action, ctx: KeyContext):
         # need to output any keys we've suspended
         resume_keys()
         # If it's top-level, pass through keys
-        _output.send_key_action(key, action)
+        # _output.send_key_action(key, action)
+        # Use the "fast" version of send_key_action for "normal" typing:
+        _output.send_key_action_fast(key, action)
 
     _active_keymaps = None
 
