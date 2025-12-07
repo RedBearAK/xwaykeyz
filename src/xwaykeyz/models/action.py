@@ -4,6 +4,12 @@ from enum import IntEnum, unique
 @unique
 class Action(IntEnum):
 
+    # From `evtest` output, the "magic numbers" for assignment
+    # to enums:
+    #   0 == 'released'
+    #   1 == 'pressed'
+    #   2 == 'repeated'
+
     RELEASE, PRESS, REPEAT = range(3)
 
     @property

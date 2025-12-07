@@ -109,72 +109,6 @@ _suspend_timer = None
 _last_suspend_timeout = 0
 
 
-# def resume_keys():
-#     global _last_suspend_timeout
-#     global _suspend_timer
-#     if not is_suspended():
-#         return
-
-#     _suspend_timer.cancel()
-#     _last_suspend_timeout = 0
-#     _suspend_timer = None
-
-#     # keys = get_suspended_mods()
-#     states: list[Keystate] = [x for x in _key_states.values() if x.suspended]
-#     if len(states) > 0:
-#         debug("resuming keys:", [x.key for x in states])
-
-#     for ks in states:
-#         # spent keys that are held long enough to resume
-#         # no longer count as spent
-#         ks.spent = False
-#         # sticky keys (input side) remain silently held
-#         # and are only lifted when they are lifted from the input
-#         ks.suspended = False
-#         if ks.key in _sticky:
-#             continue
-
-#         # if some other key PRESS is waking us up then we must be a modifier (we
-#         # know because if we were waking ourself it would happen in on_key)
-#         # but if a key RELEASE is waking us then we still might be momentary -
-#         # IF we were still the last key that was pressed
-
-#         # if ks.is_multi:
-#         #     other_mods = [e.key for e in states if e.key != ks.key]
-#         #     # TODO: can this be cleaned up?
-#         #     # special casing to allow shift-multi-mod to work more successfully if
-#         #     # shift is the key you release first
-#         #     if len(other_mods) == 1 \
-#         #         and other_mods[0] in Modifier.SHIFT.keys \
-#         #             and _last_key == ks.key:
-#         #         pass  # momentary
-#         #     else:
-#         #         ks.key = ks.multikey  # hold
-#         #     ks.multikey = False
-#         #     ks.is_multi = False
-
-#         # User submitted fix from Toshy issue #720
-#         # https://github.com/RedBearAK/Toshy/issues/720
-#         # 
-#         if ks.is_multi:
-#             other_mods = [e.key for e in states if e.key != ks.key]
-#             special_shift_case = (
-#                 len(other_mods) == 1
-#                 and other_mods[0] in Modifier.SHIFT.keys
-#                 and ks.multikey in Modifier.SHIFT.keys
-#                 and _last_key == ks.key
-#             )
-#             if not special_shift_case:
-#                 ks.key = ks.multikey  # hold
-#             ks.multikey = False
-#             ks.is_multi = False
-
-#         if not ks.exerted_on_output:
-#             ks.exerted_on_output = True
-#             _output.send_key_action(ks.key, Action.PRESS)
-
-
-
 def resume_keys():
     global _last_suspend_timeout
     global _suspend_timer
@@ -424,17 +358,21 @@ ignore_repeating_keys = _REPEATING_KEYS['ignore_repeating_keys']
 # @benchit
 def on_event(event: InputEvent, device):
 
+    # we do not attempt to transform non-key events
+    # or any events with no device (startup key-presses)
+    if event.type != ecodes.EV_KEY or device is None:
+        _output.send_event(event)
+        return
+
+    # Need to know action type here, in order to decide if event
+    # should be ignored (passed through without processing)
+    action = Action(event.value)
+
     # EXPERIMENTAL: Pass through "repeat" key events without further processing.
     # Drastically decreases CPU usage when holding a non-modifier key down (e.g., gaming).
-    # What negative side effects can we expect from doing this? Only obscure edge cases? 
-    # Meaning of "magic numbers" for event.value (source: `evtest` output): 
-    #   0 == 'released'
-    #   1 == 'pressed'
-    #   2 == 'repeated'
     # Pass through can be disabled using ignore_repeating_keys() API function in config file.
     # Usage in config: ignore_repeating_keys(False)
-    # 
-    if ignore_repeating_keys and event.value == 2:
+    if ignore_repeating_keys and action.is_repeat:
         if logger.VERBOSE:
             print()     # give some space from regular event blocks in the log
             debug(
@@ -444,39 +382,35 @@ def on_event(event: InputEvent, device):
         _output.send_event(event)
         return
 
-    # we do not attempt to transform non-key events
-    # or any events with no device (startup key-presses)
-    if event.type != ecodes.EV_KEY or device is None:
-        _output.send_event(event)
-        return
+    key = Key(event.code)
+    keystate = find_keystate_or_new(inkey=key, action=action)
 
-    # Give KeyContext the device and window context objects
-    ctx                         = KeyContext(device, window_context)
-    action                      = Action(event.value)
-    key                         = Key(event.code)
-
-    ks = find_keystate_or_new(
-        inkey=key,
-        action=action
-    )
+    # For repeats/releases of known keys, skip expensive window context query
+    if (action.is_released or action.is_repeat) and keystate.key is not None:
+        ctx = KeyContext.from_cache(device, keystate.wndw_ctxt_error_on_press)
+    else:
+        ctx = KeyContext(device, window_context)
+        # Cache error state on press for later release/repeat events
+        if action.just_pressed:
+            keystate.wndw_ctxt_error_on_press = ctx.wndw_ctxt_error
 
     debug()
     debug(f"in {key} ({action})", ctx="II")
 
-    # if there is an X error (we don't have any window context)
+    # if there is a window context error (we don't have any window context)
     # then we turn off all mappings until it's resolved and act
     # more or less as a pass thru for all input => output
     if ctx.wndw_ctxt_error:
-        ks.key = ks.key or ks.inkey
+        keystate.key = keystate.key or keystate.inkey
 
     # we only do modmap on the PRESS pass, keys may not
     # redefine themselves midstream while repeating or
     # as they are lifted
-    if not ks.key:
-        apply_modmap(ks, ctx)
-        apply_multi_modmap(ks, ctx)
+    if not keystate.key:
+        apply_modmap(keystate, ctx)
+        apply_multi_modmap(keystate, ctx)
 
-    on_key(ks, ctx)
+    on_key(keystate, ctx)
 
 
 def on_mod_key(keystate: Keystate, ctx):

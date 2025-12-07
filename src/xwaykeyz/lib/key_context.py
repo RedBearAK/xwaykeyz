@@ -1,6 +1,6 @@
 from ..models.key import Key
 from evdev import InputDevice
-from .window_context import WindowContextProvider
+from .window_context import WindowContextProvider, NO_CONTEXT_WAS_ERROR
 
 
 class KeyContext:
@@ -9,10 +9,35 @@ class KeyContext:
         self._device = device
         self._win_ctx_provider = window_context
 
+    @classmethod
+    def from_cache(cls, device, cached_wndw_ctxt_error):
+        """Create a KeyContext with pre-populated window context state.
+        
+        Used for release/repeat events where we don't need to query
+        window context again — we use the state from the original press.
+
+        Keymapper does not evaluate the conditionals except on press.
+        """
+        instance = cls.__new__(cls)
+        instance._device = device
+        instance._win_ctx_provider = None
+        instance._X_ctx = {
+            "wm_class": "",
+            "wm_name": "",
+            "wndw_ctxt_error": cached_wndw_ctxt_error
+        }
+        return instance
+
     def _query_window_context(self):
-        # cache this,  think it might be expensive
-        if self._X_ctx is None:
+        # Query window context only if we don't have one already
+        if self._X_ctx is not None:
+            return
+        # Make sure that the window context provider is valid before query
+        if self._win_ctx_provider is not None:
             self._X_ctx = self._win_ctx_provider.get_window_context()
+        # No valid window context provider? Prevent crash, use context error
+        else:
+            self._X_ctx = NO_CONTEXT_WAS_ERROR
 
     @property
     def wm_class(self):
