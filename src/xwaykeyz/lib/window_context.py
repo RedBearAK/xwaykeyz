@@ -638,7 +638,7 @@ class Wl_KWin_WindowContext(WindowContextProviderInterface):
         # 'resourceName' has no X11/Xorg equivalent (tends to be process name?)
         self.res_name       = new_wdw_info_dct.get('resource_name', '')
 
-        debug(f"KDE_DBUS_SVC: Using D-Bus interface '{self.toshy_dbus_obj}' for window context", ctx='CX')
+        debug(f"KWIN_DBUS_CTX: Using D-Bus interface '{self.toshy_dbus_obj}' for window context", ctx='CX')
 
         return {"wm_class": self.wm_class, "wm_name": self.wm_name, "wndw_ctxt_error": False}
 
