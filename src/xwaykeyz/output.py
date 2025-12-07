@@ -132,7 +132,7 @@ class Output:
         # TODO: do we need this? I think not.
         # self.__send_sync()
 
-    def send_key_action(self, key, action):
+    def send_key_action(self, key, action: Action):
         self.__update_pressed_modifier_keys(key, action)
         self.__update_pressed_keys(key, action)
         _uinput.write(ecodes.EV_KEY, key, action)
@@ -143,6 +143,10 @@ class Output:
         debug(action, f"{key}{mod_suffix}", time.time(), ctx="OO")
 
         self.__send_sync()
+
+        # Visual terminator when all output keys are released
+        if action.is_released and len(self._pressed_keys) == 0:
+            debug("──────────", ctx="==")
 
     def send_combo(self, combo: Combo):
         released_mod_keys       = []
