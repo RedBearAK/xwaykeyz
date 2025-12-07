@@ -387,6 +387,10 @@ def on_event(event: InputEvent, device):
     key = Key(event.code)
     keystate = find_keystate_or_new(inkey=key, action=action)
 
+    # This blank line separates each logging block from the
+    # previous block for better readability.
+    debug()
+
     # For repeats/releases of known keys, skip expensive window context query
     if (action.is_released or action.is_repeat):
         # debug(f"Using cached context for {key} ({action}), keystate.key={keystate.key}")
@@ -398,7 +402,6 @@ def on_event(event: InputEvent, device):
         if action.just_pressed:
             _last_press_wndw_ctxt_error = ctx.wndw_ctxt_error
 
-    debug()
     debug(f"in {key} ({action})", ctx="II")
 
     # if there is a window context error (we don't have any window context)
