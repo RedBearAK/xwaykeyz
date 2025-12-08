@@ -10,22 +10,16 @@ class KeyContext:
         self._win_ctx_provider = window_context
 
     @classmethod
-    def from_cache(cls, device, cached_wndw_ctxt_error):
+    def from_cache(cls, device, cached_ctx_data):
         """Create a KeyContext with pre-populated window context state.
         
         Used for release/repeat events where we don't need to query
         window context again — we use the state from the original press.
-
-        Keymapper does not evaluate the conditionals except on press.
         """
         instance = cls.__new__(cls)
         instance._device = device
         instance._win_ctx_provider = None
-        instance._X_ctx = {
-            "wm_class": "",
-            "wm_name": "",
-            "wndw_ctxt_error": cached_wndw_ctxt_error
-        }
+        instance._X_ctx = cached_ctx_data
         return instance
 
     def _query_window_context(self):

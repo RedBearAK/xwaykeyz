@@ -351,7 +351,7 @@ wl_compositor   = _ENVIRON['wl_compositor']
 
 from .lib.window_context import WindowContextProvider
 window_context                  = WindowContextProvider(session_type, wl_compositor)
-_last_press_wndw_ctxt_error     = False
+_last_press_ctx_data            = {"wm_class": "", "wm_name": "", "wndw_ctxt_error": False}
 
 ignore_repeating_keys = _REPEATING_KEYS['ignore_repeating_keys']
 
@@ -391,16 +391,16 @@ def on_event(event: InputEvent, device):
     # previous block for better readability.
     debug()
 
-    # For repeats/releases of known keys, skip expensive window context query
-    if (action.is_released or action.is_repeat):
-        # debug(f"Using cached context for {key} ({action}), keystate.key={keystate.key}")
-        ctx = KeyContext.from_cache(device, _last_press_wndw_ctxt_error)
+    if action.is_released or action.is_repeat:
+        ctx = KeyContext.from_cache(device, _last_press_ctx_data)
     else:
-        # debug(f"Creating fresh context for {key} ({action}), keystate.key={keystate.key}")
         ctx = KeyContext(device, window_context)
-        # Cache error state on press for later release/repeat events
         if action.just_pressed:
-            _last_press_wndw_ctxt_error = ctx.wndw_ctxt_error
+            _last_press_ctx_data = {
+                "wm_class": ctx.wm_class,
+                "wm_name": ctx.wm_name,
+                "wndw_ctxt_error": ctx.wndw_ctxt_error
+            }
 
     debug(f"in {key} ({action})", ctx="II")
 
