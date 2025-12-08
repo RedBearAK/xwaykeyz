@@ -358,7 +358,7 @@ ignore_repeating_keys = _REPEATING_KEYS['ignore_repeating_keys']
 
 # @benchit
 def on_event(event: InputEvent, device):
-    global _last_press_wndw_ctxt_error
+    global _last_press_ctx_data
 
     # we do not attempt to transform non-key events
     # or any events with no device (startup key-presses)
