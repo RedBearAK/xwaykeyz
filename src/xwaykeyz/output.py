@@ -76,8 +76,8 @@ def setup_uinput(uinput=None):
     _uinput = uinput or real_uinput()
 
 
-_THROTTLE_MIN_PRE_MS = 2
-_THROTTLE_MIN_POST_MS = 3
+_THROTTLE_MIN_PRE_MS = 1
+_THROTTLE_MIN_POST_MS = 2
 
 
 class Output:
