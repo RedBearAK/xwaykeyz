@@ -76,6 +76,15 @@ def setup_uinput(uinput=None):
     _uinput = uinput or real_uinput()
 
 
+# Throttle delay minimums defined here are calculated to hopefully
+# avoid interfering with most human-achievable normal typing speeds,
+# minimizing the risk of causing input buffering while maintaining
+# some minimal temporal separation between all keystroke events,
+# even in the case of the user having their main throttle delay
+# values set to zero in their config. Or missing, defaulting to
+# zero. Having actual zero delays between key action events causes
+# too many problems, may be partly responsible for some of the
+# "stuck key" issues some users run into.
 _THROTTLE_MIN_PRE_MS = 1
 _THROTTLE_MIN_POST_MS = 2
 
