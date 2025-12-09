@@ -14,7 +14,7 @@ from .lib.logger import error
 # TODO: keep tabs on active window vs constant querying?
 
 
-NO_CONTEXT_WAS_ERROR = {"wm_class": "", "wm_name": "", "x_error": True}
+NO_CONTEXT_WAS_ERROR = {"wm_class": "", "wm_name": "", "wndw_ctxt_error": True}
 _display = None
 
 
@@ -38,7 +38,7 @@ def get_xorg_context():
             if pair:
                 wm_class = str(pair[1])
 
-        return {"wm_class": wm_class, "wm_name": wm_name, "x_error": False}
+        return {"wm_class": wm_class, "wm_name": wm_name, "wndw_ctxt_error": False}
 
     except ConnectionClosedError as xerror:
         error(xerror)

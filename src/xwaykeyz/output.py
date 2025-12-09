@@ -3,7 +3,7 @@ from evdev import ecodes
 from evdev.uinput import UInput
 
 from .lib.logger import debug
-from .models.action import PRESS, RELEASE
+from .models.action import PRESS, RELEASE, Action
 from .models.combo import Combo
 from .models.modifier import Modifier
 from .config_api import _THROTTLES
@@ -76,6 +76,19 @@ def setup_uinput(uinput=None):
     _uinput = uinput or real_uinput()
 
 
+# Throttle delay minimums defined here are calculated to hopefully
+# avoid interfering with most human-achievable normal typing speeds,
+# minimizing the risk of causing input buffering while maintaining
+# some minimal temporal separation between all keystroke events,
+# even in the case of the user having their main throttle delay
+# values set to zero in their config. Or missing, defaulting to
+# zero. Having actual zero delays between key action events causes
+# too many problems, may be partly responsible for some of the
+# "stuck key" issues some users run into.
+_THROTTLE_MIN_PRE_MS = 1
+_THROTTLE_MIN_POST_MS = 2
+
+
 class Output:
     def __init__(self):
         self._pressed_modifier_keys = set()
@@ -84,16 +97,24 @@ class Output:
         self._suspend_depth = 0
 
     def __update_pressed_modifier_keys(self, key, action):
+        if not isinstance(action, Action):
+            raise TypeError(f'Expected type Action, received {type(action)}.')
+
         if not Modifier.is_key_modifier(key):
             return
 
-        if action.is_pressed():
+        # Changing is_pressed to use property decorator, for consistency
+        if action.is_pressed:
             self._pressed_modifier_keys.add(key)
         else:
             self._pressed_modifier_keys.discard(key)
 
     def __update_pressed_keys(self, key, action):
-        if action.is_pressed():
+        if not isinstance(action, Action):
+            raise TypeError(f'Expected type Action, received {type(action)}.')
+
+        # Changing is_pressed to use property decorator, for consistency
+        if action.is_pressed:
             self._pressed_keys.add(key)
         else:
             self._pressed_keys.discard(key)
@@ -114,7 +135,9 @@ class Output:
     def is_mod_pressed(self, key):
         return key in self._pressed_modifier_keys
 
-    def is_pressed(self, key):
+    # Renamed from "is_pressed" to reduce naming 
+    # redundancy with Action, Keystate properties.
+    def is_key_pressed(self, key):
         return key in self._pressed_keys
 
     def send_event(self, event):
@@ -122,17 +145,65 @@ class Output:
         # TODO: do we need this? I think not.
         # self.__send_sync()
 
+    # def send_key_action(self, key, action: Action):
+    #     self.__update_pressed_modifier_keys(key, action)
+    #     self.__update_pressed_keys(key, action)
+    #     _uinput.write(ecodes.EV_KEY, key, action)
+    #     # debug(action, key, time.time(), ctx="OO")
+
+    #     mod_name = Modifier.get_modifier_name(key)
+    #     mod_suffix = f" ({mod_name} mod)" if mod_name else ""
+    #     debug(action, f"{key}{mod_suffix}", time.time(), ctx="OO")
+
+    #     self.__send_sync()
+
+    #     # Visual terminator when all output keys are released
+    #     if action.is_released and len(self._pressed_keys) == 0:
+    #         debug("──────────", ctx="==")
+
     def send_key_action(self, key, action):
+        if not isinstance(action, Action):
+            raise TypeError(f'Expected type Action, received {type(action)}.')
+
+        sleep_ms(_THROTTLES['key_pre_delay_ms'] + _THROTTLE_MIN_PRE_MS)
+
         self.__update_pressed_modifier_keys(key, action)
         self.__update_pressed_keys(key, action)
         _uinput.write(ecodes.EV_KEY, key, action)
-        # debug(action, key, time.time(), ctx="OO")
 
         mod_name = Modifier.get_modifier_name(key)
         mod_suffix = f" ({mod_name} mod)" if mod_name else ""
         debug(action, f"{key}{mod_suffix}", time.time(), ctx="OO")
 
         self.__send_sync()
+
+        sleep_ms(_THROTTLES['key_post_delay_ms'] + _THROTTLE_MIN_POST_MS)
+
+        # Visual terminator when all output keys are released
+        if action.is_released and len(self._pressed_keys) == 0:
+            debug("──────────", ctx="==")
+
+    def send_key_action_fast(self, key, action):
+        if not isinstance(action, Action):
+            raise TypeError(f'Expected type Action, received {type(action)}.')
+
+        sleep_ms(_THROTTLE_MIN_PRE_MS)
+
+        self.__update_pressed_modifier_keys(key, action)
+        self.__update_pressed_keys(key, action)
+        _uinput.write(ecodes.EV_KEY, key, action)
+
+        mod_name = Modifier.get_modifier_name(key)
+        mod_suffix = f" ({mod_name} mod)" if mod_name else ""
+        debug(action, f"{key}{mod_suffix}", time.time(), ctx="OO")
+
+        self.__send_sync()
+
+        sleep_ms(_THROTTLE_MIN_POST_MS)
+
+        # Visual terminator when all output keys are released
+        if action.is_released and len(self._pressed_keys) == 0:
+            debug("──────────", ctx="==")
 
     def send_combo(self, combo: Combo):
         released_mod_keys       = []
@@ -188,37 +259,61 @@ class Output:
         #############################################################################################
 
 
+        # for key in reversed(list(mod_keys_we_need_to_lift)):
+        #     sleep_ms(_THROTTLES['key_pre_delay_ms'])
+        #     self.send_key_action(key, RELEASE)
+        #     sleep_ms(_THROTTLES['key_post_delay_ms'])
+        #     released_mod_keys.append(key)
+
+        # for key in [mod.get_key() for mod in mods_we_need_to_press]:
+        #     sleep_ms(_THROTTLES['key_pre_delay_ms'])
+        #     self.send_key_action(key, PRESS)
+        #     sleep_ms(_THROTTLES['key_post_delay_ms'])
+        #     pressed_mod_keys.append(key)
+
+        # # normal key portion of the combo
+        # sleep_ms(_THROTTLES['key_pre_delay_ms'])
+        # self.send_key_action(combo.key, PRESS)
+        # sleep_ms(6)
+        # self.send_key_action(combo.key, RELEASE)
+        # sleep_ms(_THROTTLES['key_post_delay_ms'])
+
+        # for modifier in reversed(pressed_mod_keys):
+        #     sleep_ms(_THROTTLES['key_pre_delay_ms'])
+        #     self.send_key_action(modifier, RELEASE)
+        #     sleep_ms(_THROTTLES['key_post_delay_ms'])
+
+        # if self.__is_suspending():  # sleep the keys
+        #     self._suspended_mod_keys.extend(released_mod_keys)
+        # else:  # reassert the keys
+        #     for modifier in reversed(released_mod_keys):
+        #         sleep_ms(_THROTTLES['key_pre_delay_ms'])
+        #         self.send_key_action(modifier, PRESS)
+        #         sleep_ms(_THROTTLES['key_post_delay_ms'])
+
+
+        # Moved throttle delays into send_key_action() above.
+
         for key in reversed(list(mod_keys_we_need_to_lift)):
-            sleep_ms(_THROTTLES['key_pre_delay_ms'])
             self.send_key_action(key, RELEASE)
-            sleep_ms(_THROTTLES['key_post_delay_ms'])
             released_mod_keys.append(key)
 
         for key in [mod.get_key() for mod in mods_we_need_to_press]:
-            sleep_ms(_THROTTLES['key_pre_delay_ms'])
             self.send_key_action(key, PRESS)
-            sleep_ms(_THROTTLES['key_post_delay_ms'])
             pressed_mod_keys.append(key)
 
         # normal key portion of the combo
-        sleep_ms(_THROTTLES['key_pre_delay_ms'])
         self.send_key_action(combo.key, PRESS)
-        sleep_ms(6)
         self.send_key_action(combo.key, RELEASE)
-        sleep_ms(_THROTTLES['key_post_delay_ms'])
 
         for modifier in reversed(pressed_mod_keys):
-            sleep_ms(_THROTTLES['key_pre_delay_ms'])
             self.send_key_action(modifier, RELEASE)
-            sleep_ms(_THROTTLES['key_post_delay_ms'])
 
-        if self.__is_suspending():  # sleep the keys
+        if self.__is_suspending():
             self._suspended_mod_keys.extend(released_mod_keys)
-        else:  # reassert the keys
+        else:
             for modifier in reversed(released_mod_keys):
-                sleep_ms(_THROTTLES['key_pre_delay_ms'])
                 self.send_key_action(modifier, PRESS)
-                sleep_ms(_THROTTLES['key_post_delay_ms'])
 
     def send_key(self, key):
         self.send_combo(Combo(None, key))
@@ -271,6 +366,8 @@ class SuspendWhenLifting:
     """
 
     def __init__(self, output):
+        if not isinstance(output, Output):
+            raise TypeError(f'Expected type Output, received {type(output)}.')
         self._output = output
 
     def __enter__(self):

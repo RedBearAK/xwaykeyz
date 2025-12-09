@@ -143,7 +143,8 @@ def receive_input(device: EventIO):
                     exit(0)
                 if event.code == CONFIG.DUMP_DIAGNOSTICS_KEY:
                     action = Action(event.value)
-                    if action.just_pressed():
+                    # Changed just_pressed to use property decorator, for consistency.
+                    if action.just_pressed:
                         debug("DIAG: Diagnostics requested.")
                         dump_diagnostics()
                     continue
