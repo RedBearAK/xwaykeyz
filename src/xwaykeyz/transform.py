@@ -550,7 +550,11 @@ def on_event(event: InputEvent, device):
     # Clear output tracking UNLESS we're awaiting first repeat for this key
     # This preserves PRESS output tracking for first repeat cache population
     key_code = event.code if event.type == ecodes.EV_KEY else None
-    if _awaiting_first_repeat_key is None or key_code != _awaiting_first_repeat_key:
+
+    # Clear tracking in most cases - preserve only when awaiting first repeat
+    if (_awaiting_first_repeat_key is None 
+        or _repeat_cache is not None
+        or key_code != _awaiting_first_repeat_key):
         _output.clear_cache_tracking()
 
     # we do not attempt to transform non-key events
