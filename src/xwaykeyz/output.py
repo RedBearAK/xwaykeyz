@@ -147,9 +147,14 @@ class Output:
         # TODO: do we need this? I think not.
         # self.__send_sync()
 
-    def _cache_output(self, output_type: str, data: "Key | Combo | tuple[Key, Action]"):
-        """Record output for repeat caching. Called by send methods."""
-        self._last_output_for_cache = (output_type, data)
+    def _cache_output(self, output_type: str, data):
+        """
+        Record output for repeat caching. Called by send methods.
+        Only records the FIRST output (first-write-wins) to prevent
+        send_combo() internal calls from overwriting the combo tracking.
+        """
+        if self._last_output_for_cache is None:
+            self._last_output_for_cache = (output_type, data)
 
     def clear_cache_tracking(self):
         """Clear the output cache tracking. Call at start of each event."""
