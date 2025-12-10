@@ -87,6 +87,7 @@ class RepeatCache:
 _repeat_cache: RepeatCache | None       = None
 _modifiers_changed_since_cache          = False
 _awaiting_first_repeat_key              = None
+_first_repeat_processed                 = False
 
 
 def invalidate_repeat_cache():
@@ -232,6 +233,7 @@ def reset_transform():
     global _repeat_cache
     global _modifiers_changed_since_cache
     global _awaiting_first_repeat_key
+    global _first_repeat_processed
     _active_keymaps                     = None
     _output                             = Output()
     _key_states                         = {}
@@ -239,6 +241,7 @@ def reset_transform():
     _repeat_cache                       = None
     _modifiers_changed_since_cache      = False
     _awaiting_first_repeat_key          = None
+    _first_repeat_processed             = False
 
 
 def shutdown():
@@ -545,15 +548,16 @@ ignore_repeating_keys = _REPEATING_KEYS['ignore_repeating_keys']
 
 # @benchit
 def on_event(event: InputEvent, device):
-    global _last_press_ctx_data, _awaiting_first_repeat_key
+    global _last_press_ctx_data, _awaiting_first_repeat_key, _first_repeat_processed
 
     # Clear output tracking UNLESS we're awaiting first repeat for this key
     # This preserves PRESS output tracking for first repeat cache population
     key_code = event.code if event.type == ecodes.EV_KEY else None
 
     # Clear tracking in most cases - preserve only when awaiting first repeat
+    # AND first repeat hasn't been processed yet
     if (_awaiting_first_repeat_key is None 
-        or _repeat_cache is not None
+        or _first_repeat_processed
         or key_code != _awaiting_first_repeat_key):
         _output.clear_cache_tracking()
 
@@ -668,9 +672,8 @@ def on_mod_key(keystate: Keystate, ctx):
             keystate.exerted_on_output = False
 
 
-
 def on_key(keystate: Keystate, ctx):
-    global _last_key, _awaiting_first_repeat_key
+    global _last_key, _awaiting_first_repeat_key, _first_repeat_processed
 
     key, action = (keystate.key, keystate.action)
     
@@ -693,21 +696,23 @@ def on_key(keystate: Keystate, ctx):
                 debug(f"Cache invalidated: cached key released ({key})")
     
     # Handle first repeat - cache miss but we have tracking from PRESS
-    if action.is_repeat and _repeat_cache is None and not Modifier.is_key_modifier(key):
+    if action.is_repeat and not _first_repeat_processed and not Modifier.is_key_modifier(key):
+        _first_repeat_processed = True  # Latch - stops further attempts
         # This is the first repeat - populate cache from preserved PRESS tracking
         populate_repeat_cache(key, action)
         # Now replay from newly populated cache
         if _repeat_cache is not None and try_replay_cached_repeat(key, action):
-            return  # Cache populated and replayed successfully
-        # If cache population failed (complex output, etc.), fall through to normal eval
+            return
     
-    # Clear awaiting flag if different key pressed or key released
-    if action.just_pressed and _awaiting_first_repeat_key is not None:
-        if not Modifier.is_key_modifier(key) and key.value != _awaiting_first_repeat_key:
+    # Clear awaiting flag if DIFFERENT key pressed or awaiting key released
+    if action.just_pressed and not Modifier.is_key_modifier(key):
+        if _awaiting_first_repeat_key is not None and key.value != _awaiting_first_repeat_key:
             _awaiting_first_repeat_key = None
+            _first_repeat_processed = False
             _output.clear_cache_tracking()
     elif action.is_released and _awaiting_first_repeat_key == key.value:
         _awaiting_first_repeat_key = None
+        _first_repeat_processed = False
         _output.clear_cache_tracking()
 
     mod_name = Modifier.get_modifier_name(key)
