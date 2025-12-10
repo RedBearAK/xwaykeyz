@@ -652,25 +652,24 @@ def on_key(keystate: Keystate, ctx):
     global _last_key
 
     key, action = (keystate.key, keystate.action)
-    # debug("on_key", key, action)
 
-    # ⚡ FAST PATH: Check repeat cache before ANY other processing
-    if action.is_repeat and try_replay_cached_repeat(key, action):
-        return  # Cache hit - we're done!
+    # ⚡ CACHE LOGIC - Skip entirely when no cache exists (fast typing optimization)
+    if _repeat_cache is not None:
+        # Cache exists - do cache operations
+        if action.is_repeat and try_replay_cached_repeat(key, action):
+            return  # Cache hit - we're done!
 
-    # Invalidate cache when a different non-modifier key is pressed
-    # (This means user switched to a different key while holding)
-    if action.just_pressed and not Modifier.is_key_modifier(key):
-        if _repeat_cache is not None and _repeat_cache.inkey != key:
+        # Invalidate cache when a different non-modifier key is pressed
+        if action.just_pressed and not Modifier.is_key_modifier(key):
+            if _repeat_cache.inkey != key:
+                invalidate_repeat_cache()
+                if logger.VERBOSE:
+                    debug(f"Cache invalidated: different key pressed ({key} vs cached {_repeat_cache.inkey})")
+        # Invalidate cache when the cached key is released
+        elif action.is_released and key == _repeat_cache.inkey:
             invalidate_repeat_cache()
             if logger.VERBOSE:
-                debug(f"Cache invalidated: different key pressed ({key} vs cached {_repeat_cache.inkey})")
-
-    # Invalidate cache when the cached key is released
-    if action.is_released and _repeat_cache is not None and key == _repeat_cache.inkey:
-        invalidate_repeat_cache()
-        if logger.VERBOSE:
-            debug(f"Cache invalidated: cached key released ({key})")
+                debug(f"Cache invalidated: cached key released ({key})")
 
     mod_name = Modifier.get_modifier_name(key)
     mod_suffix = f" ({mod_name} mod)" if mod_name else ""
