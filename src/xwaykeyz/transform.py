@@ -534,6 +534,9 @@ ignore_repeating_keys = _REPEATING_KEYS['ignore_repeating_keys']
 def on_event(event: InputEvent, device):
     global _last_press_ctx_data
 
+    # Clear output tracking from previous event
+    _output.clear_cache_tracking()
+
     # we do not attempt to transform non-key events
     # or any events with no device (startup key-presses)
     if event.type != ecodes.EV_KEY or device is None:
