@@ -5,6 +5,7 @@ from evdev.uinput import UInput
 from .lib.logger import debug
 from .models.action import PRESS, RELEASE, Action
 from .models.combo import Combo
+from .models.key import Key
 from .models.modifier import Modifier
 from .config_api import _THROTTLES
 
@@ -91,10 +92,11 @@ _THROTTLE_MIN_POST_MS = 2
 
 class Output:
     def __init__(self):
-        self._pressed_modifier_keys = set()
-        self._pressed_keys = set()
-        self._suspended_mod_keys = []
-        self._suspend_depth = 0
+        self._pressed_modifier_keys     = set()
+        self._pressed_keys              = set()
+        self._suspended_mod_keys        = []
+        self._suspend_depth             = 0
+        self._last_output_for_cache     = None
 
     def __update_pressed_modifier_keys(self, key, action):
         if not isinstance(action, Action):
@@ -145,25 +147,21 @@ class Output:
         # TODO: do we need this? I think not.
         # self.__send_sync()
 
-    # def send_key_action(self, key, action: Action):
-    #     self.__update_pressed_modifier_keys(key, action)
-    #     self.__update_pressed_keys(key, action)
-    #     _uinput.write(ecodes.EV_KEY, key, action)
-    #     # debug(action, key, time.time(), ctx="OO")
+    def _cache_output(self, output_type: str, data: "Key | Combo | tuple[Key, Action]"):
+        """Record output for repeat caching. Called by send methods."""
+        self._last_output_for_cache = (output_type, data)
 
-    #     mod_name = Modifier.get_modifier_name(key)
-    #     mod_suffix = f" ({mod_name} mod)" if mod_name else ""
-    #     debug(action, f"{key}{mod_suffix}", time.time(), ctx="OO")
-
-    #     self.__send_sync()
-
-    #     # Visual terminator when all output keys are released
-    #     if action.is_released and len(self._pressed_keys) == 0:
-    #         debug("──────────", ctx="==")
+    def clear_cache_tracking(self):
+        """Clear the output cache tracking. Call at start of each event."""
+        self._last_output_for_cache = None
 
     def send_key_action(self, key, action):
         if not isinstance(action, Action):
             raise TypeError(f'Expected type Action, received {type(action)}.')
+
+        # Track for cache - only track PRESS actions for passthrough
+        if action.just_pressed:
+            self._cache_output('passthrough', (key, action))
 
         sleep_ms(_THROTTLES['key_pre_delay_ms'] + _THROTTLE_MIN_PRE_MS)
 
@@ -187,6 +185,10 @@ class Output:
         if not isinstance(action, Action):
             raise TypeError(f'Expected type Action, received {type(action)}.')
 
+        # Track for cache - only track PRESS actions for passthrough
+        if action.just_pressed:
+            self._cache_output('passthrough', (key, action))
+
         sleep_ms(_THROTTLE_MIN_PRE_MS)
 
         self.__update_pressed_modifier_keys(key, action)
@@ -206,6 +208,10 @@ class Output:
             debug("──────────", ctx="==")
 
     def send_combo(self, combo: Combo):
+
+        # Track for cache
+        self._cache_output('combo', combo)
+
         released_mod_keys       = []
         pressed_mod_keys        = []
 
@@ -224,73 +230,6 @@ class Output:
                     else:
                         debug(f"Skipping redundant removal of modifier: {modifier}")
                     # TODO: The above "fix" needs to be deeply examined for possible side effects. 
-
-
-        #############################################################################################
-        #############################################################################################
-        # # DEBUGGING VERSION OF THE ABOVE CODE BLOCK (LEFT AND RIGHT VARIANTS OF MODIFIER
-        # # USED TOGETHER IN INPUT COMOBO CAUSE EXCEPTION IF GENERIC MODIFIER IS IN OUTPUT COMBO)
-        # print()
-        # mod_keys_we_need_to_lift = self._pressed_modifier_keys.copy()
-        # debug(f"######  {mod_keys_we_need_to_lift           = }")
-        # mods_we_need_to_press = combo.modifiers.copy()
-        # debug(f"######  {mods_we_need_to_press              = }")
-        # print()
-        # debug(f"########  {self._pressed_modifier_keys      = }")
-        # for pressed_key in self._pressed_modifier_keys:
-        #     debug(f"########  outer for loop: {pressed_key      = }")
-        #     debug(f"########  outer for loop: {combo.modifiers  = }")
-        #     print()
-        #     for modifier in combo.modifiers:
-        #         debug(f"##########  inner for loop: {modifier               = }")
-        #         debug(f"##########  inner for loop: {modifier.get_keys()    = }")
-        #         print()
-        #         if pressed_key in modifier.get_keys():
-        #             debug(f"############  removing key: {pressed_key                = }")
-        #             # already held down, we don't need to press or lift
-        #             debug(f"############  before remove: {mod_keys_we_need_to_lift  = }")
-        #             debug(f"############  before remove: {mods_we_need_to_press     = }")
-        #             mod_keys_we_need_to_lift.remove(pressed_key)
-        #             mods_we_need_to_press.remove(modifier)
-        #             debug(f"############  after remove: {mod_keys_we_need_to_lift   = }")
-        #             debug(f"############  after remove: {mods_we_need_to_press      = }")
-        #         print()
-        #############################################################################################
-        #############################################################################################
-
-
-        # for key in reversed(list(mod_keys_we_need_to_lift)):
-        #     sleep_ms(_THROTTLES['key_pre_delay_ms'])
-        #     self.send_key_action(key, RELEASE)
-        #     sleep_ms(_THROTTLES['key_post_delay_ms'])
-        #     released_mod_keys.append(key)
-
-        # for key in [mod.get_key() for mod in mods_we_need_to_press]:
-        #     sleep_ms(_THROTTLES['key_pre_delay_ms'])
-        #     self.send_key_action(key, PRESS)
-        #     sleep_ms(_THROTTLES['key_post_delay_ms'])
-        #     pressed_mod_keys.append(key)
-
-        # # normal key portion of the combo
-        # sleep_ms(_THROTTLES['key_pre_delay_ms'])
-        # self.send_key_action(combo.key, PRESS)
-        # sleep_ms(6)
-        # self.send_key_action(combo.key, RELEASE)
-        # sleep_ms(_THROTTLES['key_post_delay_ms'])
-
-        # for modifier in reversed(pressed_mod_keys):
-        #     sleep_ms(_THROTTLES['key_pre_delay_ms'])
-        #     self.send_key_action(modifier, RELEASE)
-        #     sleep_ms(_THROTTLES['key_post_delay_ms'])
-
-        # if self.__is_suspending():  # sleep the keys
-        #     self._suspended_mod_keys.extend(released_mod_keys)
-        # else:  # reassert the keys
-        #     for modifier in reversed(released_mod_keys):
-        #         sleep_ms(_THROTTLES['key_pre_delay_ms'])
-        #         self.send_key_action(modifier, PRESS)
-        #         sleep_ms(_THROTTLES['key_post_delay_ms'])
-
 
         # Moved throttle delays into send_key_action() above.
 
@@ -316,6 +255,9 @@ class Output:
                 self.send_key_action(modifier, PRESS)
 
     def send_key(self, key):
+        # Track for cache
+        self._cache_output('key', key)
+
         self.send_combo(Combo(None, key))
 
     def shutdown(self):
