@@ -86,6 +86,7 @@ class RepeatCache:
 
 _repeat_cache: RepeatCache | None       = None
 _modifiers_changed_since_cache          = False
+_awaiting_first_repeat_key              = None
 
 
 def invalidate_repeat_cache():
@@ -162,17 +163,20 @@ def populate_repeat_cache(key: Key, action: Action):
     Populate the repeat cache from output tracking after successful transform.
     Only caches simple outputs (passthrough, combo, key).
     Complex outputs (callables, lists, nested keymaps) are not cached.
-    """
-    global _repeat_cache, _modifiers_changed_since_cache
     
-    # Only cache on PRESS events (not repeat or release)
-    if not action.just_pressed:
+    NOW CALLED ON FIRST REPEAT (not on PRESS) to avoid overhead for keys that don't repeat.
+    """
+    global _repeat_cache, _modifiers_changed_since_cache, _awaiting_first_repeat_key
+    
+    # Only cache on first REPEAT event (not press)
+    if not action.is_repeat:
         return
     
-    # Check if output was tracked
+    # Check if output was tracked (from previous PRESS event)
     if _output._last_output_for_cache is None:
         if logger.VERBOSE:
-            debug("No output tracked - not caching")
+            debug("First repeat: No output tracked - not caching")
+        _awaiting_first_repeat_key = None  # Clear awaiting flag
         return
     
     output_type, output_data = _output._last_output_for_cache
@@ -180,7 +184,9 @@ def populate_repeat_cache(key: Key, action: Action):
     # Only cache simple output types
     if output_type not in ('passthrough', 'combo', 'key'):
         if logger.VERBOSE:
-            debug(f"Output type '{output_type}' not cacheable - skipping")
+            debug(f"First repeat: Output type '{output_type}' not cacheable - skipping")
+        _awaiting_first_repeat_key = None  # Clear awaiting flag
+        _output.clear_cache_tracking()
         return
     
     # Don't cache when in nested keymap state
@@ -188,7 +194,9 @@ def populate_repeat_cache(key: Key, action: Action):
         # Check if _active_keymaps is a list and not the top-level KEYMAPS
         if isinstance(_active_keymaps, list) and _active_keymaps != _KEYMAPS:
             if logger.VERBOSE:
-                debug("In nested keymap - not caching")
+                debug("First repeat: In nested keymap - not caching")
+            _awaiting_first_repeat_key = None  # Clear awaiting flag
+            _output.clear_cache_tracking()
             return
     
     # Get current modifier snapshot
@@ -206,10 +214,13 @@ def populate_repeat_cache(key: Key, action: Action):
     # Reset modifier change flag since we just cached current state
     _modifiers_changed_since_cache = False
     
-    if logger.VERBOSE:
-        debug(f"Repeat cache populated: {key} -> {output_type} with {len(mods_snapshot)} mods")
+    # Clear awaiting flag
+    _awaiting_first_repeat_key = None
     
-    # Clear the output tracking for next event
+    if logger.VERBOSE:
+        debug(f"First repeat: Cache populated: {key} -> {output_type} with {len(mods_snapshot)} mods")
+    
+    # Clear the output tracking now that cache is populated
     _output.clear_cache_tracking()
 
 
@@ -220,12 +231,14 @@ def reset_transform():
     global _sticky
     global _repeat_cache
     global _modifiers_changed_since_cache
-    _active_keymaps = None
-    _output = Output()
-    _key_states = {}
-    _sticky = {}
-    _repeat_cache = None
-    _modifiers_changed_since_cache = False
+    global _awaiting_first_repeat_key
+    _active_keymaps                     = None
+    _output                             = Output()
+    _key_states                         = {}
+    _sticky                             = {}
+    _repeat_cache                       = None
+    _modifiers_changed_since_cache      = False
+    _awaiting_first_repeat_key          = None
 
 
 def shutdown():
@@ -532,10 +545,13 @@ ignore_repeating_keys = _REPEATING_KEYS['ignore_repeating_keys']
 
 # @benchit
 def on_event(event: InputEvent, device):
-    global _last_press_ctx_data
+    global _last_press_ctx_data, _awaiting_first_repeat_key
 
-    # Clear output tracking from previous event
-    _output.clear_cache_tracking()
+    # Clear output tracking UNLESS we're awaiting first repeat for this key
+    # This preserves PRESS output tracking for first repeat cache population
+    key_code = event.code if event.type == ecodes.EV_KEY else None
+    if _awaiting_first_repeat_key is None or key_code != _awaiting_first_repeat_key:
+        _output.clear_cache_tracking()
 
     # we do not attempt to transform non-key events
     # or any events with no device (startup key-presses)
@@ -648,17 +664,18 @@ def on_mod_key(keystate: Keystate, ctx):
             keystate.exerted_on_output = False
 
 
+
 def on_key(keystate: Keystate, ctx):
-    global _last_key
+    global _last_key, _awaiting_first_repeat_key
 
     key, action = (keystate.key, keystate.action)
-
+    
     # ⚡ CACHE LOGIC - Skip entirely when no cache exists (fast typing optimization)
     if _repeat_cache is not None:
         # Cache exists - do cache operations
         if action.is_repeat and try_replay_cached_repeat(key, action):
             return  # Cache hit - we're done!
-
+        
         # Invalidate cache when a different non-modifier key is pressed
         if action.just_pressed and not Modifier.is_key_modifier(key):
             if _repeat_cache.inkey != key:
@@ -670,6 +687,24 @@ def on_key(keystate: Keystate, ctx):
             invalidate_repeat_cache()
             if logger.VERBOSE:
                 debug(f"Cache invalidated: cached key released ({key})")
+    
+    # Handle first repeat - cache miss but we have tracking from PRESS
+    if action.is_repeat and _repeat_cache is None and not Modifier.is_key_modifier(key):
+        # This is the first repeat - populate cache from preserved PRESS tracking
+        populate_repeat_cache(key, action)
+        # Now replay from newly populated cache
+        if _repeat_cache is not None and try_replay_cached_repeat(key, action):
+            return  # Cache populated and replayed successfully
+        # If cache population failed (complex output, etc.), fall through to normal eval
+    
+    # Clear awaiting flag if different key pressed or key released
+    if action.just_pressed and _awaiting_first_repeat_key is not None:
+        if not Modifier.is_key_modifier(key) and key.value != _awaiting_first_repeat_key:
+            _awaiting_first_repeat_key = None
+            _output.clear_cache_tracking()
+    elif action.is_released and _awaiting_first_repeat_key == key.value:
+        _awaiting_first_repeat_key = None
+        _output.clear_cache_tracking()
 
     mod_name = Modifier.get_modifier_name(key)
     mod_suffix = f" ({mod_name} mod)" if mod_name else ""
@@ -742,12 +777,10 @@ def on_key(keystate: Keystate, ctx):
         # not a modifier or a multi-key, so pass straight to transform
         transform_key(key, action, ctx)
 
-    # Populate cache after successful transform on PRESS
-    # This should be AFTER transform_key() is called for non-modifier keys
-    # and BEFORE updating _last_key
-    if not Modifier.is_key_modifier(key):
-        populate_repeat_cache(key, action)
-    
+    # Set awaiting flag after successful PRESS (output tracking preserved for first repeat)
+    # REMOVED: populate_repeat_cache() call from here - deferred to first repeat
+    if action.just_pressed and not Modifier.is_key_modifier(key):
+        _awaiting_first_repeat_key = key.value
 
     # Changed just_pressed to use property decorator, for consistency.
     if action.just_pressed:
