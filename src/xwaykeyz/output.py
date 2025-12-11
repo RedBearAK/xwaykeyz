@@ -158,10 +158,6 @@ class Output:
 
     def clear_cache_tracking(self):
         """Clear the output cache tracking."""
-        if logger.VERBOSE and self._last_output_for_cache is not None:
-            import traceback
-            debug("=== CLEARING TRACKING ===")
-            traceback.print_stack()
         self._last_output_for_cache = None
 
     def send_key_action(self, key, action):
@@ -181,6 +177,9 @@ class Output:
         mod_name = Modifier.get_modifier_name(key)
         mod_suffix = f" ({mod_name} mod)" if mod_name else ""
         debug(action, f"{key}{mod_suffix}", time.time(), ctx="OO")
+
+        # special throttle delay prior to SYN (help prevent out-of-order errors with ibus?)
+        sleep_ms(_THROTTLE_MIN_PRE_MS)
 
         self.__send_sync()
 
@@ -207,6 +206,9 @@ class Output:
         mod_name = Modifier.get_modifier_name(key)
         mod_suffix = f" ({mod_name} mod)" if mod_name else ""
         debug(action, f"{key}{mod_suffix}", time.time(), ctx="OO")
+
+        # special throttle delay prior to SYN (help prevent out-of-order errors with ibus?)
+        sleep_ms(_THROTTLE_MIN_PRE_MS)
 
         self.__send_sync()
 
