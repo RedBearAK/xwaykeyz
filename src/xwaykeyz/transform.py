@@ -176,8 +176,6 @@ def populate_repeat_cache(key: Key, action: Action):
     
     # Check if output was tracked (from previous PRESS event)
     if _output._last_output_for_cache is None:
-        if logger.VERBOSE:
-            debug("First repeat: No output tracked - not caching")
         _awaiting_first_repeat_key = None  # Clear awaiting flag
         return
     
@@ -185,8 +183,6 @@ def populate_repeat_cache(key: Key, action: Action):
     
     # Only cache simple output types
     if output_type not in ('passthrough', 'combo', 'key'):
-        if logger.VERBOSE:
-            debug(f"First repeat: Output type '{output_type}' not cacheable - skipping")
         _awaiting_first_repeat_key = None  # Clear awaiting flag
         _output.clear_cache_tracking()
         return
@@ -195,8 +191,6 @@ def populate_repeat_cache(key: Key, action: Action):
     if _active_keymaps is not None and _active_keymaps not in (escape_next_key, escape_next_combo):
         # Check if _active_keymaps is a list and not the top-level KEYMAPS
         if isinstance(_active_keymaps, list) and _active_keymaps != _KEYMAPS:
-            if logger.VERBOSE:
-                debug("First repeat: In nested keymap - not caching")
             _awaiting_first_repeat_key = None  # Clear awaiting flag
             _output.clear_cache_tracking()
             return
@@ -551,28 +545,8 @@ ignore_repeating_keys = _REPEATING_KEYS['ignore_repeating_keys']
 def on_event(event: InputEvent, device):
     global _last_press_ctx_data, _awaiting_first_repeat_key, _first_repeat_processed
 
-    # # Early exit for non-key events - they should not touch cache tracking
-    # if event.type != ecodes.EV_KEY or device is None:
-    #     _output.send_event(event)
-    #     return
-
     # Early exit for non-key events - they should not touch cache tracking
     if event.type != ecodes.EV_KEY or device is None:
-        if logger.VERBOSE and event.type != ecodes.EV_KEY:
-            event_type_name = {
-                ecodes.EV_SYN: "EV_SYN",
-                ecodes.EV_REL: "EV_REL", 
-                ecodes.EV_ABS: "EV_ABS",
-                ecodes.EV_MSC: "EV_MSC",
-                ecodes.EV_SW: "EV_SW",
-                ecodes.EV_LED: "EV_LED",
-                ecodes.EV_SND: "EV_SND",
-                ecodes.EV_REP: "EV_REP",
-                ecodes.EV_FF: "EV_FF",
-                ecodes.EV_PWR: "EV_PWR",
-                ecodes.EV_FF_STATUS: "EV_FF_STATUS",
-            }.get(event.type, f"UNKNOWN({event.type})")
-            debug(f"Non-key event: {event_type_name} code={event.code} value={event.value}", ctx="--")
         _output.send_event(event)
         return
 
@@ -580,22 +554,11 @@ def on_event(event: InputEvent, device):
     key_code = event.code
     action = Action(event.value)
 
-    # DEBUG: Log the decision
-    if logger.VERBOSE:
-        debug(  f"on_event check: awaiting={_awaiting_first_repeat_key}, key_code={key_code}, "
-                f"first_done={_first_repeat_processed}, action={action}, "
-                f"has_tracking={_output._last_output_for_cache is not None}")
-
     # Clear tracking in most cases - preserve only when awaiting first repeat
-    # AND first repeat hasn't been processed yet
     if (_awaiting_first_repeat_key is None 
         or _first_repeat_processed
         or key_code != _awaiting_first_repeat_key):
         _output.clear_cache_tracking()
-        if logger.VERBOSE:
-            debug("on_event: CLEARED tracking")
-    elif logger.VERBOSE:
-        debug("on_event: PRESERVED tracking")
 
     # EXPERIMENTAL: Pass through "repeat" key events without further processing.
     # Drastically decreases CPU usage when holding a non-modifier key down (e.g., gaming).
@@ -815,8 +778,6 @@ def on_key(keystate: Keystate, ctx):
     # Set awaiting flag after successful PRESS (output tracking preserved for first repeat)
     if action.just_pressed and not Modifier.is_key_modifier(key):
         _awaiting_first_repeat_key = key.value
-        if logger.VERBOSE:
-            debug(f"END of PRESS: awaiting={_awaiting_first_repeat_key}, has_tracking={_output._last_output_for_cache is not None}")
 
     # Changed just_pressed to use property decorator, for consistency.
     if action.just_pressed:
