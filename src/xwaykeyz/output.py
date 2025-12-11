@@ -2,6 +2,7 @@ import time
 from evdev import ecodes
 from evdev.uinput import UInput
 
+from .lib import logger
 from .lib.logger import debug
 from .models.action import PRESS, RELEASE, Action
 from .models.combo import Combo
@@ -156,7 +157,11 @@ class Output:
             self._last_output_for_cache = (output_type, data)
 
     def clear_cache_tracking(self):
-        """Clear the output cache tracking. Call at start of each event."""
+        """Clear the output cache tracking."""
+        if logger.VERBOSE and self._last_output_for_cache is not None:
+            import traceback
+            debug("=== CLEARING TRACKING ===")
+            traceback.print_stack()
         self._last_output_for_cache = None
 
     def send_key_action(self, key, action):
