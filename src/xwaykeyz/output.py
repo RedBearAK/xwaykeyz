@@ -178,9 +178,6 @@ class Output:
         mod_suffix = f" ({mod_name} mod)" if mod_name else ""
         debug(action, f"{key}{mod_suffix}", time.time(), ctx="OO")
 
-        # special throttle delay prior to SYN (help prevent out-of-order errors with ibus?)
-        sleep_ms(_THROTTLE_MIN_PRE_MS)
-
         self.__send_sync()
 
         sleep_ms(_THROTTLES['key_post_delay_ms'] + _THROTTLE_MIN_POST_MS)
@@ -206,9 +203,6 @@ class Output:
         mod_name = Modifier.get_modifier_name(key)
         mod_suffix = f" ({mod_name} mod)" if mod_name else ""
         debug(action, f"{key}{mod_suffix}", time.time(), ctx="OO")
-
-        # special throttle delay prior to SYN (help prevent out-of-order errors with ibus?)
-        sleep_ms(_THROTTLE_MIN_PRE_MS)
 
         self.__send_sync()
 
