@@ -92,9 +92,10 @@ _first_repeat_processed                 = False
 
 def invalidate_repeat_cache():
     """Invalidate the repeat cache, forcing re-evaluation on next repeat."""
-    global _repeat_cache
+    global _repeat_cache, _first_repeat_processed
     if _repeat_cache is not None:
         _repeat_cache.valid = False
+        _first_repeat_processed = False
         if logger.VERBOSE:
             debug("Repeat cache invalidated")
 
