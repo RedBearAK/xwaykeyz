@@ -550,8 +550,28 @@ ignore_repeating_keys = _REPEATING_KEYS['ignore_repeating_keys']
 def on_event(event: InputEvent, device):
     global _last_press_ctx_data, _awaiting_first_repeat_key, _first_repeat_processed
 
+    # # Early exit for non-key events - they should not touch cache tracking
+    # if event.type != ecodes.EV_KEY or device is None:
+    #     _output.send_event(event)
+    #     return
+
     # Early exit for non-key events - they should not touch cache tracking
     if event.type != ecodes.EV_KEY or device is None:
+        if logger.VERBOSE and event.type != ecodes.EV_KEY:
+            event_type_name = {
+                ecodes.EV_SYN: "EV_SYN",
+                ecodes.EV_REL: "EV_REL", 
+                ecodes.EV_ABS: "EV_ABS",
+                ecodes.EV_MSC: "EV_MSC",
+                ecodes.EV_SW: "EV_SW",
+                ecodes.EV_LED: "EV_LED",
+                ecodes.EV_SND: "EV_SND",
+                ecodes.EV_REP: "EV_REP",
+                ecodes.EV_FF: "EV_FF",
+                ecodes.EV_PWR: "EV_PWR",
+                ecodes.EV_FF_STATUS: "EV_FF_STATUS",
+            }.get(event.type, f"UNKNOWN({event.type})")
+            debug(f"Non-key event: {event_type_name} code={event.code} value={event.value}", ctx="--")
         _output.send_event(event)
         return
 
