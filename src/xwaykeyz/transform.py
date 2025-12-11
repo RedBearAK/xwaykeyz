@@ -84,7 +84,7 @@ class RepeatCache:
     valid: bool = True
 
 
-_repeat_cache: RepeatCache | None       = None
+_repeat_cache: "RepeatCache | None"     = None
 _modifiers_changed_since_cache          = False
 _awaiting_first_repeat_key              = None
 _first_repeat_processed                 = False
@@ -554,12 +554,23 @@ def on_event(event: InputEvent, device):
     # This preserves PRESS output tracking for first repeat cache population
     key_code = event.code if event.type == ecodes.EV_KEY else None
 
+    # DEBUG: Log the decision
+    if logger.VERBOSE and event.type == ecodes.EV_KEY:
+        action = Action(event.value)
+        debug(  f"on_event check: awaiting={_awaiting_first_repeat_key}, key_code={key_code}, "
+                f"first_done={_first_repeat_processed}, action={action}, "
+                f"has_tracking={_output._last_output_for_cache is not None}")
+
     # Clear tracking in most cases - preserve only when awaiting first repeat
     # AND first repeat hasn't been processed yet
     if (_awaiting_first_repeat_key is None 
         or _first_repeat_processed
         or key_code != _awaiting_first_repeat_key):
         _output.clear_cache_tracking()
+        if logger.VERBOSE and event.type == ecodes.EV_KEY:
+            debug("on_event: CLEARED tracking")
+    elif logger.VERBOSE and event.type == ecodes.EV_KEY:
+        debug("on_event: PRESERVED tracking")
 
     # we do not attempt to transform non-key events
     # or any events with no device (startup key-presses)
