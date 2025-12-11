@@ -550,13 +550,17 @@ ignore_repeating_keys = _REPEATING_KEYS['ignore_repeating_keys']
 def on_event(event: InputEvent, device):
     global _last_press_ctx_data, _awaiting_first_repeat_key, _first_repeat_processed
 
-    # Clear output tracking UNLESS we're awaiting first repeat for this key
-    # This preserves PRESS output tracking for first repeat cache population
-    key_code = event.code if event.type == ecodes.EV_KEY else None
+    # Early exit for non-key events - they should not touch cache tracking
+    if event.type != ecodes.EV_KEY or device is None:
+        _output.send_event(event)
+        return
+
+    # Now we know it's a key event - safe to do clear/preserve logic
+    key_code = event.code
+    action = Action(event.value)
 
     # DEBUG: Log the decision
-    if logger.VERBOSE and event.type == ecodes.EV_KEY:
-        action = Action(event.value)
+    if logger.VERBOSE:
         debug(  f"on_event check: awaiting={_awaiting_first_repeat_key}, key_code={key_code}, "
                 f"first_done={_first_repeat_processed}, action={action}, "
                 f"has_tracking={_output._last_output_for_cache is not None}")
@@ -567,20 +571,10 @@ def on_event(event: InputEvent, device):
         or _first_repeat_processed
         or key_code != _awaiting_first_repeat_key):
         _output.clear_cache_tracking()
-        if logger.VERBOSE and event.type == ecodes.EV_KEY:
+        if logger.VERBOSE:
             debug("on_event: CLEARED tracking")
-    elif logger.VERBOSE and event.type == ecodes.EV_KEY:
+    elif logger.VERBOSE:
         debug("on_event: PRESERVED tracking")
-
-    # we do not attempt to transform non-key events
-    # or any events with no device (startup key-presses)
-    if event.type != ecodes.EV_KEY or device is None:
-        _output.send_event(event)
-        return
-
-    # Need to know action type here, in order to decide if event
-    # should be ignored (passed through without processing)
-    action = Action(event.value)
 
     # EXPERIMENTAL: Pass through "repeat" key events without further processing.
     # Drastically decreases CPU usage when holding a non-modifier key down (e.g., gaming).
