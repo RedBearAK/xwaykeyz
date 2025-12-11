@@ -798,9 +798,10 @@ def on_key(keystate: Keystate, ctx):
         transform_key(key, action, ctx)
 
     # Set awaiting flag after successful PRESS (output tracking preserved for first repeat)
-    # REMOVED: populate_repeat_cache() call from here - deferred to first repeat
     if action.just_pressed and not Modifier.is_key_modifier(key):
         _awaiting_first_repeat_key = key.value
+        if logger.VERBOSE:
+            debug(f"END of PRESS: awaiting={_awaiting_first_repeat_key}, has_tracking={_output._last_output_for_cache is not None}")
 
     # Changed just_pressed to use property decorator, for consistency.
     if action.just_pressed:
