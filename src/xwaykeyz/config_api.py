@@ -9,7 +9,7 @@ from inspect import signature
 from pprint import pformat as ppf
 from typing import Dict, List, Optional
 
-from .lib.logger import error, debug, info, warn
+from .lib.logger import error, debug, info, warn, FLUSH
 from .lib import window_context
 from .lib.key_context import KeyContext
 from .models.action import Action
@@ -306,18 +306,18 @@ def ignore_repeating_keys(true_or_false: bool = False):
 
     # Warn about breakage if True
     if true_or_false is True:
-        warn("=" * 75)
+        print("    ", "=" * 75)
         warn("WARNING: ignore_repeating_keys(True) is enabled")
-        warn(" - This PREVENTS the new repeat cache from working", ctx="    ")
-        warn(" - This BREAKS repeating remaps (e.g., Emacs movement shortcuts)", ctx="    ")
-        warn(" - The new repeat cache provides similar performance (0.1-0.5% CPU)", ctx="    ")
-        warn("   while maintaining full functionality", ctx="    ")
+        print("     - This PREVENTS the new repeat cache from working", flush=FLUSH)
+        print("     - This BREAKS repeating remaps (e.g., Emacs movement shortcuts)", flush=FLUSH)
+        print("     - The new repeat cache provides similar performance (0.1-0.5% CPU)", flush=FLUSH)
+        print("       while maintaining full functionality", flush=FLUSH)
 
     # Always show recommendation (whether True or False)
-    warn("=" * 75)
+    print("    ", "=" * 75)
     warn("RECOMMENDATION: Remove ignore_repeating_keys() from your config")
-    warn("                 to use the improved repeat cache mechanism", ctx="    ")
-    warn("=" * 75)
+    print("                 to use the improved repeat cache mechanism", flush=FLUSH)
+    print("    ", "=" * 75)
 
     _REPEATING_KEYS['ignore_repeating_keys'] = true_or_false
     debug(f"Ignore repeating keys  = '{true_or_false}'")
