@@ -316,7 +316,7 @@ def ignore_repeating_keys(true_or_false: bool = False):
     # Always show recommendation (whether True or False)
     print("    ", "=" * 75)
     warn("RECOMMENDATION: Remove ignore_repeating_keys() from your config")
-    print("                 to use the improved repeat cache mechanism", flush=FLUSH)
+    print("                     to use the improved repeat cache mechanism", flush=FLUSH)
     print("    ", "=" * 75)
 
     _REPEATING_KEYS['ignore_repeating_keys'] = true_or_false
