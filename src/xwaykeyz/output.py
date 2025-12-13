@@ -160,57 +160,38 @@ class Output:
         """Clear the output cache tracking."""
         self._last_output_for_cache = None
 
+    def send_key_action_fast(self, key, action, pre_delay=_THROTTLE_MIN_PRE_MS, post_delay=_THROTTLE_MIN_POST_MS):
+        """Fast version - uses minimal delays by default, accepts custom delays."""
+        if not isinstance(action, Action):
+            raise TypeError(f'Expected type Action, received {type(action)}.')
+
+        # Track for cache - only track PRESS actions for passthrough
+        if action.just_pressed:
+            self._cache_output('passthrough', (key, action))
+
+        sleep_ms(pre_delay)
+
+        self.__update_pressed_modifier_keys(key, action)
+        self.__update_pressed_keys(key, action)
+        _uinput.write(ecodes.EV_KEY, key, action)
+
+        mod_name = Modifier.get_modifier_name(key)
+        mod_suffix = f" ({mod_name} mod)" if mod_name else ""
+        debug(action, f"{key}{mod_suffix}", time.time(), ctx="OO")
+
+        self.__send_sync()
+
+        sleep_ms(post_delay)
+
+        # Visual terminator when all output keys are released
+        if action.is_released and len(self._pressed_keys) == 0:
+            debug("──────────", ctx="==")
+
     def send_key_action(self, key, action):
-        if not isinstance(action, Action):
-            raise TypeError(f'Expected type Action, received {type(action)}.')
-
-        # Track for cache - only track PRESS actions for passthrough
-        if action.just_pressed:
-            self._cache_output('passthrough', (key, action))
-
-        sleep_ms(_THROTTLES['key_pre_delay_ms'] + _THROTTLE_MIN_PRE_MS)
-
-        self.__update_pressed_modifier_keys(key, action)
-        self.__update_pressed_keys(key, action)
-        _uinput.write(ecodes.EV_KEY, key, action)
-
-        mod_name = Modifier.get_modifier_name(key)
-        mod_suffix = f" ({mod_name} mod)" if mod_name else ""
-        debug(action, f"{key}{mod_suffix}", time.time(), ctx="OO")
-
-        self.__send_sync()
-
-        sleep_ms(_THROTTLES['key_post_delay_ms'] + _THROTTLE_MIN_POST_MS)
-
-        # Visual terminator when all output keys are released
-        if action.is_released and len(self._pressed_keys) == 0:
-            debug("──────────", ctx="==")
-
-    def send_key_action_fast(self, key, action):
-        if not isinstance(action, Action):
-            raise TypeError(f'Expected type Action, received {type(action)}.')
-
-        # Track for cache - only track PRESS actions for passthrough
-        if action.just_pressed:
-            self._cache_output('passthrough', (key, action))
-
-        sleep_ms(_THROTTLE_MIN_PRE_MS)
-
-        self.__update_pressed_modifier_keys(key, action)
-        self.__update_pressed_keys(key, action)
-        _uinput.write(ecodes.EV_KEY, key, action)
-
-        mod_name = Modifier.get_modifier_name(key)
-        mod_suffix = f" ({mod_name} mod)" if mod_name else ""
-        debug(action, f"{key}{mod_suffix}", time.time(), ctx="OO")
-
-        self.__send_sync()
-
-        sleep_ms(_THROTTLE_MIN_POST_MS)
-
-        # Visual terminator when all output keys are released
-        if action.is_released and len(self._pressed_keys) == 0:
-            debug("──────────", ctx="==")
+        """Regular version - adds user-configured throttle delays on top of minimums."""
+        self.send_key_action_fast(key, action,
+                                _THROTTLES['key_pre_delay_ms'] + _THROTTLE_MIN_PRE_MS,
+                                _THROTTLES['key_post_delay_ms'] + _THROTTLE_MIN_POST_MS)
 
     def send_combo(self, combo: Combo):
 
