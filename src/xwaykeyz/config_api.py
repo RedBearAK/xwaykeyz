@@ -9,7 +9,7 @@ from inspect import signature
 from pprint import pformat as ppf
 from typing import Dict, List, Optional
 
-from .lib.logger import error, debug
+from .lib.logger import error, debug, info, warn
 from .lib import window_context
 from .lib.key_context import KeyContext
 from .models.action import Action
@@ -267,15 +267,58 @@ def throttle_delays(key_pre_delay_ms=0, key_post_delay_ms=0):
             f'Post-key: {_THROTTLES["key_post_delay_ms"]}ms')
 
 
+# Setting this to False now, in favor of the newer, more sophisticated
+# caching of Combo, Key and passthrough events that allows "repeat"
+# events to be "replayed", giving CPU usage for repeating keys in the 
+# 0.1-0.5% range, on a system that uses 1.1-1.6% for regular, FAST typing.
 _REPEATING_KEYS = {
-    'ignore_repeating_keys': True,
+    'ignore_repeating_keys': False,
 }
 
 
-def ignore_repeating_keys(true_or_false: bool = True):
-    """Toggle at startup whether to ignore (default) or process repeated keys."""
+# def ignore_repeating_keys(true_or_false: bool = True):
+#     """Toggle at startup whether to ignore (default) or process repeated keys."""
+#     debug("WARNING: ignore_repeating_keys prevents repeating remaps (e.g. Emacs movement)")
+#     if true_or_false not in [True, False]:
+#         raise ValueError("The ignore_repeated_keys() function wants True or False.")
+#     _REPEATING_KEYS['ignore_repeating_keys'] = true_or_false
+#     debug(f"Ignore repeating keys  = '{true_or_false}'")
+
+
+def ignore_repeating_keys(true_or_false: bool = False):
+    """
+    Toggle at startup whether to ignore or process repeated keys.
+    
+    NOTICE: This function is largely obsoleted by the new repeat cache mechanism,
+    which provides similar performance (~0.1-0.5% CPU) while maintaining full
+    remapping functionality on common types of repeat events (Combo, Key).
+    
+    Setting this to True will prevent the repeat cache from working and will
+    prevent remaps from repeating (though this only affects certain things like
+    Emacs-style cursor movement combos that need to repeat when held).
+    
+    Consider removing this function call from your config to use the new
+    repeat cache instead, which gives you both performance AND functionality.
+    """
+
     if true_or_false not in [True, False]:
         raise ValueError("The ignore_repeated_keys() function wants True or False.")
+
+    # Warn about breakage if True
+    if true_or_false is True:
+        warn("=" * 75)
+        warn("WARNING: ignore_repeating_keys(True) is enabled")
+        warn(" - This PREVENTS the new repeat cache from working", ctx="    ")
+        warn(" - This BREAKS repeating remaps (e.g., Emacs movement shortcuts)", ctx="    ")
+        warn(" - The new repeat cache provides similar performance (0.1-0.5% CPU)", ctx="    ")
+        warn("   while maintaining full functionality", ctx="    ")
+
+    # Always show recommendation (whether True or False)
+    warn("=" * 75)
+    warn("RECOMMENDATION: Remove ignore_repeating_keys() from your config")
+    warn("                 to use the improved repeat cache mechanism", ctx="    ")
+    warn("=" * 75)
+
     _REPEATING_KEYS['ignore_repeating_keys'] = true_or_false
     debug(f"Ignore repeating keys  = '{true_or_false}'")
 

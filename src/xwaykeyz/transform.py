@@ -552,7 +552,6 @@ def on_event(event: InputEvent, device):
 
     # Now we know it's a key event - safe to do clear/preserve logic
     key_code = event.code
-    action = Action(event.value)
 
     # Clear tracking in most cases - preserve only when awaiting first repeat
     if (_awaiting_first_repeat_key is None 
@@ -560,10 +559,13 @@ def on_event(event: InputEvent, device):
         or key_code != _awaiting_first_repeat_key):
         _output.clear_cache_tracking()
 
-    # EXPERIMENTAL: Pass through "repeat" key events without further processing.
+    # Get action for knowing about repeats, press/release
+    action = Action(event.value)
+
+    # EXPERIMENTAL: Pass through "repeat" key events without further processing, blindly.
     # Drastically decreases CPU usage when holding a non-modifier key down (e.g., gaming).
-    # Pass through can be disabled using ignore_repeating_keys() API function in config file.
-    # Usage in config: ignore_repeating_keys(False)
+    # This blind passthrough can be enabled using the ignore_repeating_keys() API function
+    # in the user's config file, like so: ignore_repeating_keys(True)
     if ignore_repeating_keys and action.is_repeat:
         if logger.VERBOSE:
             print()     # give some space from regular event blocks in the log
