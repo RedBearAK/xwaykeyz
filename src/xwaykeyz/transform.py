@@ -667,7 +667,17 @@ def on_key(keystate: Keystate, ctx):
     global _last_key, _awaiting_first_repeat_key, _first_repeat_processed
 
     key, action = (keystate.key, keystate.action)
-    
+
+    # ⚡ EARLY EXIT - Skip all cache logic for button events (BTN_*)
+    # Mouse buttons pass through cleanly but shouldn't engage cache machinery
+    # designed for keyboard key repeat optimization.
+    if key.name.startswith('BTN_'):
+        mod_name = Modifier.get_modifier_name(key)
+        mod_suffix = f" ({mod_name} mod)" if mod_name else ""
+        debug("on_key", f"{key}{mod_suffix}", action)
+        _output.send_key_action(key, action)
+        return
+
     # ⚡ CACHE LOGIC - Skip entirely when no cache exists (fast typing optimization)
     if _repeat_cache is not None:
         # Cache exists - do cache operations

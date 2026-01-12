@@ -6,7 +6,7 @@ import asyncio
 import time
 
 from asyncio import AbstractEventLoop
-from evdev import InputDevice, list_devices
+from evdev import InputDevice, ecodes, list_devices
 from typing import List
 
 from .lib.logger import debug, error, info
@@ -175,7 +175,7 @@ class DeviceRegistry:
         for device in matching_devices:
             await self.grab(device)
 
-    async def _wait_for_device_idle(self, device, max_wait=5.0, quiet_period=0.15):
+    async def _wait_for_device_idle(self, device: InputDevice, max_wait=5.0, quiet_period=0.15):
         """
         Wait for device to be idle with no key activity for quiet_period seconds.
         
@@ -209,9 +209,13 @@ class DeviceRegistry:
                     event = device.read_one()
                     if event is None:
                         break
-                    # Any event counts as activity
-                    debug(f"Device '{device.name}' has buffered event, resetting idle timer")
-                    last_activity = time.monotonic()
+                    # Only keyboard key events reset the idle timer - ignore EV_REL
+                    # (mouse movement), EV_ABS (touchpad), EV_SYN, etc.
+                    # This allows mice and combo devices to be grabbed immediately
+                    # while still protecting against mid-keypress keyboard grabs.
+                    if event.type == ecodes.EV_KEY:
+                        debug(f"Device '{device.name}' has buffered key event, resetting idle timer")
+                        last_activity = time.monotonic()
             except BlockingIOError:
                 pass  # No events waiting, that's fine
             except OSError as e:
