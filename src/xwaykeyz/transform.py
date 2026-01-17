@@ -929,6 +929,8 @@ def handle_commands(commands, key, action, ctx, input_combo=None):
 
     if not isinstance(commands, list):
         commands = [commands]
+    elif len(commands) > 1:
+        _output._last_output_for_cache = ('uncacheable', None)
 
     # if input_combo and input_combo.hint == ComboHint.BIND:
         # auto_sticky(commands[0], input_combo)
