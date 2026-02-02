@@ -737,6 +737,8 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
             ('wayland', 'gnome-shell'),
             # TODO: Remove deprecated 'gnome' desktop environment entry by mid-2027? 
             ('wayland', 'gnome'),
+            # 'mutter' observed as window manager process name in NixOS, in 2026-02-02
+            ('wayland', 'mutter'),
         ]
 
     def get_window_context(self):
