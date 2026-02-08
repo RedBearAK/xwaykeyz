@@ -26,6 +26,26 @@ _MULTI_MODMAPS: list[MultiModmap] = None
 _KEYMAPS: list[Keymap] = None
 _TIMEOUTS = None
 
+# Context cache for keymap matching optimization.
+# Cache key: (device_name, wm_class, wm_name). Most users have <20 active contexts.
+MAX_CACHE_SIZE = 100
+_context_keymap_cache: dict[tuple[str, str, str], list[Keymap]] = {}
+
+def _get_active_keymaps_with_cache(ctx) -> list[Keymap]:
+    """Get active keymaps with context-based caching."""
+    cache_key = (ctx.device_name or "", ctx.wm_class or "", ctx.wm_name or "")
+
+    if cache_key in _context_keymap_cache:
+        return _context_keymap_cache[cache_key]
+
+    active_keymaps = [km for km in _KEYMAPS if km.matches(ctx)]
+
+    if len(_context_keymap_cache) >= MAX_CACHE_SIZE:
+        _context_keymap_cache.clear()
+
+    _context_keymap_cache[cache_key] = active_keymaps
+    return active_keymaps
+
 def boot_config():
     global _MODMAPS
     global _MULTI_MODMAPS
@@ -837,7 +857,7 @@ def transform_key(key, action: Action, ctx: KeyContext):
     # Decide keymap(s)
     if _active_keymaps is None:
         is_top_level = True
-        _active_keymaps = [km for km in _KEYMAPS if km.matches(ctx)]
+        _active_keymaps = _get_active_keymaps_with_cache(ctx)
 
     for keymap in _active_keymaps:
         if combo not in keymap:
