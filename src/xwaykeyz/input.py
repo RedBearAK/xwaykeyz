@@ -87,9 +87,14 @@ def main_loop(arg_devices, device_watch):
         inotify = watch_dev_input()
 
     loop = get_or_create_event_loop()
-    registry = DeviceRegistry(
-        loop, input_cb=receive_input, filterer=DeviceFilter(arg_devices)
-    )
+    registry = DeviceRegistry(loop, input_cb=None, filterer=DeviceFilter(arg_devices))
+
+    # Create a closure that includes the registry for ENODEV cleanup
+    def input_callback(device):
+        return receive_input(device, registry)
+
+    # Set the callback on the registry so it gets used when adding readers
+    registry._input_cb = input_callback
 
     async def async_startup():
         """Run async startup tasks before entering the main event loop."""
@@ -133,7 +138,7 @@ async def supervisor():
                 _tasks.remove(task)
 
 
-def receive_input(device: EventIO):
+def receive_input(device: EventIO, registry: DeviceRegistry = None):
     try:
         for event in device.read():
             if event.type == ecodes.EV_KEY:
@@ -150,11 +155,20 @@ def receive_input(device: EventIO):
                     continue
 
             on_event(event, device)
-    # swallow "no such device errors" when unplugging a USB
-    # device and we still have a few events in the inotify queue
+    # Handle "no such device errors" when unplugging a USB device 
+    # We need to unregister from event loop to prevent busy loop
     except OSError as e:
-        if not e.errno == 19:  # no such device
-            raise
+        if e.errno == 19:  # ENODEV - no such device
+            # Device was removed (e.g., unplugged or KVM switch)
+            # Unregister from event loop to prevent busy-loop
+            if registry is not None:
+                try:
+                    registry.ungrab(device)
+                except Exception:
+                    pass
+            return
+        # Re-raise other OSError exceptions
+        raise
 
 
 _add_timer: Optional[TimerHandle] = None
@@ -165,7 +179,12 @@ def _inotify_handler(registry, inotify: INotify):
     global _add_timer
     global _notify_events
 
+    # Use non-blocking read (timeout 0) to avoid blocking
+    # Only process if there are actual events
     events = inotify.read(0)
+    if not events:
+        return
+
     _notify_events.extend(events)
 
     if _add_timer:
