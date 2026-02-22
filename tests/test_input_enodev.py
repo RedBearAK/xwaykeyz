@@ -1,12 +1,15 @@
 import errno
 import pytest
-from xwaykeyz.input import receive_input
+from unittest.mock import Mock
+from xwaykeyz.devices import DeviceRegistry
+
 
 class MockDevice:
     def __init__(self, raise_enodev=False, raise_other_error=False):
         self.raise_enodev = raise_enodev
         self.raise_other_error = raise_other_error
         self.name = "mock device"
+        self.path = "/dev/input/event0"
 
     def read(self):
         if self.raise_enodev:
@@ -20,54 +23,52 @@ class MockDevice:
         return []
 
 
-class MockRegistry:
-    def __init__(self):
-        self.ungrab_called = False
-        self.ungrab_device = None
+def test_safe_input_cb_handles_enodev_and_calls_ungrab():
+    registry = Mock()
+    registry._input_cb = Mock()
+    registry._input_cb.side_effect = lambda device: MockDevice(raise_enodev=True).read()
+    registry.ungrab = Mock()
 
-    def ungrab(self, device):
-        self.ungrab_called = True
-        self.ungrab_device = device
-
-
-def test_receive_input_handles_enodev_and_calls_ungrab():
-    registry = MockRegistry()
     device = MockDevice(raise_enodev=True)
+    DeviceRegistry._safe_input_cb(registry, device)
 
-    result = receive_input(device, registry)
-
-    assert result is None
-    assert registry.ungrab_called is True
-    assert registry.ungrab_device is device
+    registry.ungrab.assert_called_once_with(device)
 
 
-def test_receive_input_re_raises_other_oserrors():
-    registry = MockRegistry()
+def test_safe_input_cb_re_raises_other_oserrors():
+    registry = Mock()
+    registry._input_cb = Mock()
+
     device = MockDevice(raise_other_error=True)
+    registry._input_cb.side_effect = lambda d: MockDevice(raise_other_error=True).read()
 
     with pytest.raises(OSError) as exc_info:
-        receive_input(device, registry)
+        DeviceRegistry._safe_input_cb(registry, device)
 
     assert exc_info.value.errno == errno.EBUSY
 
 
-def test_receive_input_handles_enodev_without_registry():
+def test_safe_input_cb_ungrab_exception_is_swallowed():
+    registry = Mock()
+    registry._input_cb = Mock()
+    registry._input_cb.side_effect = lambda device: MockDevice(raise_enodev=True).read()
+    registry.ungrab = Mock(side_effect=RuntimeError("ungrab failed"))
+
     device = MockDevice(raise_enodev=True)
 
-    result = receive_input(device, registry=None)
+    DeviceRegistry._safe_input_cb(registry, device)
 
-    assert result is None
+    registry.ungrab.assert_called_once_with(device)
 
 
-def test_receive_input_ungrab_exception_is_swallowed():
-    registry = MockRegistry()
+def test_safe_input_cb_passes_through_normal_operation():
+    registry = Mock()
+    registry._input_cb = Mock()
+    registry.ungrab = Mock()
 
-    def raise_on_ungrab(device):
-        raise RuntimeError("ungrab failed")
+    device = MockDevice()
 
-    registry.ungrab = raise_on_ungrab
-    device = MockDevice(raise_enodev=True)
+    DeviceRegistry._safe_input_cb(registry, device)
 
-    result = receive_input(device, registry)
-
-    assert result is None
+    registry._input_cb.assert_called_once_with(device)
+    registry.ungrab.assert_not_called()

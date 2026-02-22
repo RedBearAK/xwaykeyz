@@ -72,7 +72,7 @@ async def wakeup_output():
     up = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.RELEASE)
     for ev in [down, up]:
         on_event(ev, dummy_device)
-        await asyncio.sleep(0.01)   # Chill after press and release of Shift key
+        await asyncio.sleep(0.01)  # Chill after press and release of Shift key
 
     # Restore the user's setting for verbosity, whether it was True or False
     logger.VERBOSE = _verbose_state
@@ -87,14 +87,9 @@ def main_loop(arg_devices, device_watch):
         inotify = watch_dev_input()
 
     loop = get_or_create_event_loop()
-    registry = DeviceRegistry(loop, input_cb=None, filterer=DeviceFilter(arg_devices))
-
-    # Create a closure that includes the registry for ENODEV cleanup
-    def input_callback(device):
-        return receive_input(device, registry)
-
-    # Set the callback on the registry so it gets used when adding readers
-    registry._input_cb = input_callback
+    registry = DeviceRegistry(
+        loop, input_cb=receive_input, filterer=DeviceFilter(arg_devices)
+    )
 
     async def async_startup():
         """Run async startup tasks before entering the main event loop."""
@@ -138,37 +133,22 @@ async def supervisor():
                 _tasks.remove(task)
 
 
-def receive_input(device: EventIO, registry: DeviceRegistry = None):
-    try:
-        for event in device.read():
-            if event.type == ecodes.EV_KEY:
-                if event.code == CONFIG.EMERGENCY_EJECT_KEY:
-                    error("BAIL OUT: Emergency eject - shutting down.")
-                    shutdown()
-                    exit(0)
-                if event.code == CONFIG.DUMP_DIAGNOSTICS_KEY:
-                    action = Action(event.value)
-                    # Changed just_pressed to use property decorator, for consistency.
-                    if action.just_pressed:
-                        debug("DIAG: Diagnostics requested.")
-                        dump_diagnostics()
-                    continue
+def receive_input(device: EventIO):
+    for event in device.read():
+        if event.type == ecodes.EV_KEY:
+            if event.code == CONFIG.EMERGENCY_EJECT_KEY:
+                error("BAIL OUT: Emergency eject - shutting down.")
+                shutdown()
+                exit(0)
+            if event.code == CONFIG.DUMP_DIAGNOSTICS_KEY:
+                action = Action(event.value)
+                # Changed just_pressed to use property decorator, for consistency.
+                if action.just_pressed:
+                    debug("DIAG: Diagnostics requested.")
+                    dump_diagnostics()
+                continue
 
-            on_event(event, device)
-    # Handle "no such device errors" when unplugging a USB device 
-    # We need to unregister from event loop to prevent busy loop
-    except OSError as e:
-        if e.errno == 19:  # ENODEV - no such device
-            # Device was removed (e.g., unplugged or KVM switch)
-            # Unregister from event loop to prevent busy-loop
-            if registry is not None:
-                try:
-                    registry.ungrab(device)
-                except Exception:
-                    pass
-            return
-        # Re-raise other OSError exceptions
-        raise
+        on_event(event, device)
 
 
 _add_timer: Optional[TimerHandle] = None
