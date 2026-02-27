@@ -72,7 +72,7 @@ async def wakeup_output():
     up = InputEvent(0, 0, ecodes.EV_KEY, Key.LEFT_SHIFT, Action.RELEASE)
     for ev in [down, up]:
         on_event(ev, dummy_device)
-        await asyncio.sleep(0.01)  # Chill after press and release of Shift key
+        await asyncio.sleep(0.01)   # Chill after press and release of Shift key
 
     # Restore the user's setting for verbosity, whether it was True or False
     logger.VERBOSE = _verbose_state
