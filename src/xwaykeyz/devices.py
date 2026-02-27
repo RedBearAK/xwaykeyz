@@ -300,8 +300,8 @@ class DeviceRegistry:
                 # OSError also inherits/catches PermissionError and IOError
                 error(f"{err.__class__.__name__} grabbing '{device.name}' ({device.path})")
                 error(f"Grab attempt {loop_cnt} of {tries}. The error was:\n\t{err}")
-            loop_cnt += 1
-            delay = min(delay * 2, delay_max)  # exponential backoff strategy
+            loop_cnt           += 1
+            delay               = min(delay * 2, delay_max)   # exponential backoff strategy
 
         error(f"Device grab was tried {tries} times and failed. Maybe, another instance is running?")
         error(f"Continuing without device: '{device.name}' ({device.path})")
