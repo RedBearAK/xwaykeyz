@@ -2,6 +2,7 @@
 # Async startup version - waits for devices to be idle before grabbing
 
 import os
+import errno
 import asyncio
 import time
 
@@ -134,6 +135,19 @@ class DeviceRegistry:
 
     def cares_about(self, device):
         return self._filter.filter(device)
+
+    def _safe_input_cb(self, device):
+        try:
+            self._input_cb(device)
+        except OSError as e:
+            if e.errno == errno.ENODEV:
+                error(f"ENODEV on '{device.name}' ({device.path}) - device removed")
+                try:
+                    self.ungrab(device)
+                except Exception:
+                    pass
+            else:
+                raise
 
     async def autodetect(self):
         """
@@ -278,7 +292,7 @@ class DeviceRegistry:
                 # Only add reader AFTER successful grab - this is the key fix!
                 # Previously add_reader was called before grab, creating a window
                 # where events could arrive before we had exclusive access.
-                self._loop.add_reader(device, self._input_cb, device)
+                self._loop.add_reader(device, self._safe_input_cb, device)
                 self._devices.append(device)
                 info(f"Successfully grabbed '{device.name}' ({device.path})", ctx="+K")
                 return
@@ -295,9 +309,14 @@ class DeviceRegistry:
     def ungrab(self, device: InputDevice):
         info(f"Ungrabbing: '{device.name}' (removed)", ctx="-K")
         self._loop.remove_reader(device)
-        self._devices.remove(device)
+        if device in self._devices:
+            self._devices.remove(device)
         try:
             device.ungrab()
+        except OSError:
+            pass
+        try:
+            device.close()
         except OSError:
             pass
 
@@ -305,16 +324,14 @@ class DeviceRegistry:
         for device in self._devices:
             try:
                 if device.path == filename:
-                    info(f"Ungrabbing: '{device.name}' (removed)", ctx="-K")
-                    self._loop.remove_reader(device)
-                    self._devices.remove(device)
-                    device.ungrab()
+                    info(f"Ungrabbing by filename: '{filename}'", ctx="-K")
+                    self.ungrab(device)
                     return
             except OSError:
                 pass
 
     def ungrab_all(self):
-        for device in self._devices:
+        for device in list(self._devices):
             try:
                 self.ungrab(device)
             except OSError:

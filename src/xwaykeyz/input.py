@@ -134,27 +134,21 @@ async def supervisor():
 
 
 def receive_input(device: EventIO):
-    try:
-        for event in device.read():
-            if event.type == ecodes.EV_KEY:
-                if event.code == CONFIG.EMERGENCY_EJECT_KEY:
-                    error("BAIL OUT: Emergency eject - shutting down.")
-                    shutdown()
-                    exit(0)
-                if event.code == CONFIG.DUMP_DIAGNOSTICS_KEY:
-                    action = Action(event.value)
-                    # Changed just_pressed to use property decorator, for consistency.
-                    if action.just_pressed:
-                        debug("DIAG: Diagnostics requested.")
-                        dump_diagnostics()
-                    continue
+    for event in device.read():
+        if event.type == ecodes.EV_KEY:
+            if event.code == CONFIG.EMERGENCY_EJECT_KEY:
+                error("BAIL OUT: Emergency eject - shutting down.")
+                shutdown()
+                exit(0)
+            if event.code == CONFIG.DUMP_DIAGNOSTICS_KEY:
+                action = Action(event.value)
+                # Changed just_pressed to use property decorator, for consistency.
+                if action.just_pressed:
+                    debug("DIAG: Diagnostics requested.")
+                    dump_diagnostics()
+                continue
 
-            on_event(event, device)
-    # swallow "no such device errors" when unplugging a USB
-    # device and we still have a few events in the inotify queue
-    except OSError as e:
-        if not e.errno == 19:  # no such device
-            raise
+        on_event(event, device)
 
 
 _add_timer: Optional[TimerHandle] = None
@@ -165,7 +159,12 @@ def _inotify_handler(registry, inotify: INotify):
     global _add_timer
     global _notify_events
 
+    # Use non-blocking read (timeout 0) to avoid blocking
+    # Only process if there are actual events
     events = inotify.read(0)
+    if not events:
+        return
+
     _notify_events.extend(events)
 
     if _add_timer:
