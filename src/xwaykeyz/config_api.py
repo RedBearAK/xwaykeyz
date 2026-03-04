@@ -37,8 +37,8 @@ _MODMAPS: List[Modmap] = []
 _MULTI_MODMAPS: List[MultiModmap] = []
 
 TIMEOUT_DEFAULTS = {
-    "multipurpose": 1,
-    "suspend": 1,
+    "multipurpose": 1.0,
+    "suspend": 1.0,
     # TODO: not implemented yet
     "post_combo": 0.5,
 }
@@ -620,7 +620,7 @@ def include(file):
     exec(compile(code, name, "exec"), config_globals)  # nosec
 
 
-def timeouts(multipurpose=1, suspend=1):
+def timeouts(multipurpose: float = 1.0, suspend: float = 1.0):
     global _TIMEOUTS
     _TIMEOUTS = {"multipurpose": multipurpose, "suspend": suspend}
 
