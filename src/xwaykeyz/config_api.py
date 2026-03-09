@@ -338,11 +338,13 @@ def reset_configuration():
     global _MULTI_MODMAPS
     global _KEYMAPS
     global _TIMEOUTS
+    global _PENDING_HYPER_EXPANSIONS
 
     _MODMAPS = []
     _MULTI_MODMAPS = []
     _KEYMAPS = []
     _TIMEOUTS = TIMEOUT_DEFAULTS
+    _PENDING_HYPER_EXPANSIONS = []
 
 
 # how transform hooks into the configuration
@@ -360,7 +362,7 @@ def get_configuration():
     if len(default) > 1:
         error(
             "You may only have a single default (non-conditional modmap),"
-            f"you have {len(default)} currently."
+            f" you have {len(default)} currently."
         )
         sys.exit(0)
     _MODMAPS = default + conditionals
@@ -377,6 +379,10 @@ def get_configuration():
         )
         sys.exit(0)
     _MULTI_MODMAPS = default + conditionals
+
+    for pending in _PENDING_HYPER_EXPANSIONS:
+        expansion_dict = _generate_hyper_expansion(pending)
+        keymap("Hyper modifier expansions (auto-gen)", expansion_dict)
 
     return (_MODMAPS, _MULTI_MODMAPS, _KEYMAPS, _TIMEOUTS)
 
@@ -653,6 +659,138 @@ def not_wm_class_match(re_str):
         return not rgx.search(ctx.wm_class)
 
     return cond
+
+
+# ─── HYPER MODIFIER SETUP ──────────────────────────────────────
+
+
+# Pending Hyper expansion configs, finalized by get_configuration()
+_PENDING_HYPER_EXPANSIONS = []
+
+
+def setup_hyper_modifier(trigger, tap_output=None, add_unshifted_layer=False):
+    """
+    Set up a Hyper modifier key with a single call.
+
+    Creates the HYPER modifier on the V_HYPER virtual carrier keycode,
+    binds the trigger key via modmap or multipurpose_modmap, and stashes
+    the expansion configuration. The expansion keymap is auto-appended
+    as the very last keymap by get_configuration(), so any user keymaps
+    referencing Hyper combos automatically take priority.
+
+    Parameters:
+        trigger:                Physical Key to use as the Hyper key
+                                (e.g., Key.CAPSLOCK)
+        tap_output:             Optional Key to output on tap
+                                (e.g., Key.ESC). Omit for pure modifier.
+        add_unshifted_layer:    If False (default), single layer:
+                                    Hyper-X → Shift+Ctrl+Alt+Super+X
+                                If True, two layers:
+                                    Hyper-X       → Ctrl+Alt+Super+X
+                                    Shift+Hyper-X → Shift+Ctrl+Alt+Super+X
+    """
+    if not isinstance(trigger, Key):
+        raise TypeError(
+            f"setup_hyper_modifier: 'trigger' must be a Key, "
+            f"got {type(trigger).__name__}"
+        )
+
+    if tap_output is not None and not isinstance(tap_output, Key):
+        raise TypeError(
+            f"setup_hyper_modifier: 'tap_output' must be a Key or None, "
+            f"got {type(tap_output).__name__}"
+        )
+
+    if not isinstance(add_unshifted_layer, bool):
+        raise TypeError(
+            f"setup_hyper_modifier: 'add_unshifted_layer' must be True or False, "
+            f"got {type(add_unshifted_layer).__name__}"
+        )
+
+    if _PENDING_HYPER_EXPANSIONS:
+        raise RuntimeError(
+            "setup_hyper_modifier() has already been called. "
+            "Only one Hyper modifier setup is supported."
+        )
+
+    # Create the HYPER modifier on the V_HYPER virtual carrier keycode
+    Modifier("HYPER", aliases=["Hyper", "LHyper"], key=Key.V_HYPER)
+
+    # Bind the physical trigger key to the virtual carrier
+    if tap_output is not None:
+        multipurpose_modmap("Hyper modifier (multipurpose)", {
+            trigger: [tap_output, Key.V_HYPER],
+        })
+        debug(
+            f"setup_hyper_modifier: "
+            f"{trigger.name} → tap: {tap_output.name}, hold: V_HYPER"
+        )
+    else:
+        modmap("Hyper modifier", {
+            trigger: Key.V_HYPER,
+        })
+        debug(f"setup_hyper_modifier: {trigger.name} → V_HYPER")
+
+    # Stash expansion config for get_configuration() to finalize
+    _PENDING_HYPER_EXPANSIONS.append({
+        "add_unshifted_layer": add_unshifted_layer,
+    })
+
+    if add_unshifted_layer:
+        layer_desc = (
+            "two layers: "
+            "Hyper → C-Alt-Super, Shift-Hyper → Shift-C-Alt-Super"
+        )
+    else:
+        layer_desc = "single layer: Hyper → Shift-C-Alt-Super"
+
+    debug(f"setup_hyper_modifier: expansion mode: {layer_desc}")
+    debug(
+        "setup_hyper_modifier: expansion keymap will be auto-appended "
+        "after all user keymaps"
+    )
+
+
+def _generate_hyper_expansion(pending):
+    """
+    Generate the Hyper expansion keymap dict from a pending configuration.
+
+    Iterates all non-modifier keys and builds combo pairs mapping
+    Hyper-modified input to the real multi-modifier expansion output.
+    V_HYPER is automatically excluded because it was registered as a
+    modifier key by the Modifier constructor.
+    """
+    add_unshifted_layer = pending["add_unshifted_layer"]
+    non_modifier_keys = [
+        key for key in Key
+        if not Modifier.is_key_modifier(key)
+    ]
+
+    expansion_dict = {}
+
+    if add_unshifted_layer:
+        # Two layers:
+        #   Hyper-X       → Ctrl+Alt+Super+X
+        #   Shift-Hyper-X → Shift+Ctrl+Alt+Super+X
+        for key in non_modifier_keys:
+            expansion_dict[combo(f"Hyper-{key.name}")] = \
+                combo(f"C-Alt-Super-{key.name}")
+            expansion_dict[combo(f"Shift-Hyper-{key.name}")] = \
+                combo(f"Shift-C-Alt-Super-{key.name}")
+    else:
+        # Single layer:
+        #   Hyper-X → Shift+Ctrl+Alt+Super+X
+        for key in non_modifier_keys:
+            expansion_dict[combo(f"Hyper-{key.name}")] = \
+                combo(f"Shift-C-Alt-Super-{key.name}")
+
+    entry_count = len(expansion_dict)
+    debug(
+        f"_generate_hyper_expansion: "
+        f"generated {entry_count} expansion entries"
+    )
+
+    return expansion_dict
 
 
 # ─── WINDOW CONTEXT MATCHING ───────────────────────────────────
