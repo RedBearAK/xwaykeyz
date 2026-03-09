@@ -20,7 +20,7 @@ from .lib import logger
 from .lib.asyncio_utils import get_or_create_event_loop
 from .lib.dummy_device import DummyDevice
 from .lib.logger import debug, error, info
-from .models.action import Action
+from .models.action import Action, PRESS, RELEASE, REPEAT
 from .models.key import Key
 from .transform import boot_config, dump_diagnostics, on_event
 
@@ -134,7 +134,25 @@ async def supervisor():
 
 
 def receive_input(device: EventIO):
-    for event in device.read():
+    events = list(device.read())
+
+    # Pre-scan: find key codes that have a release event in this batch.
+    # Any repeat events for these keys are stale — the user already
+    # let go, and the repeats just haven't been processed yet.
+    released_in_batch = set()
+    for event in events:
+        if event.type == ecodes.EV_KEY and event.value == RELEASE:
+            released_in_batch.add(event.code)
+
+    for event in events:
+        # Drop stale repeat events for keys whose release is already
+        # waiting in this same batch. This prevents buffered repeats
+        # from continuing to emit output after the user releases a key.
+        if (event.type == ecodes.EV_KEY
+                and event.value == REPEAT
+                and event.code in released_in_batch):
+            continue
+
         if event.type == ecodes.EV_KEY:
             if event.code == CONFIG.EMERGENCY_EJECT_KEY:
                 error("BAIL OUT: Emergency eject - shutting down.")
