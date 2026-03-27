@@ -137,7 +137,7 @@ class Output:
     def is_mod_pressed(self, key):
         return key in self._pressed_modifier_keys
 
-    # Renamed from "is_pressed" to reduce naming 
+    # Renamed from "is_pressed" to reduce naming
     # redundancy with Action, Keystate properties.
     def is_key_pressed(self, key):
         return key in self._pressed_keys
@@ -193,6 +193,81 @@ class Output:
                                 _THROTTLES['key_pre_delay_ms'] + _THROTTLE_MIN_PRE_MS,
                                 _THROTTLES['key_post_delay_ms'] + _THROTTLE_MIN_POST_MS)
 
+    def send_combo_held_setup(self, combo: "Combo"):
+        """
+        Set up a held combo on output for compositor-driven repeat.
+
+        Performs the same modifier diff as send_combo(), but instead of
+        doing a full press/release tap cycle, leaves the output key and
+        output modifiers parked in the pressed state on the virtual keyboard.
+
+        The kernel will generate repeat events for the held output key, and
+        the compositor will drive client-side repeat at the DE-configured rate.
+
+        Does NOT touch the suspend machinery — the caller (transform.py)
+        manages the hold lifecycle explicitly.
+
+        Returns:
+            Tuple of (released_input_mods, pressed_output_mods) — both are
+            lists of Key objects needed by teardown to reverse the setup.
+            Returns None if combo has no key (shouldn't happen, but guard).
+        """
+        if combo.key is None:
+            return None
+
+        released_mod_keys = []
+        pressed_mod_keys = []
+
+        # Modifier diff — mirrors the logic in send_combo()
+        mod_keys_we_need_to_lift = self._pressed_modifier_keys.copy()
+        mods_we_need_to_press = combo.modifiers.copy()
+        for pressed_key in self._pressed_modifier_keys:
+            for modifier in combo.modifiers:
+                if pressed_key in modifier.get_keys():
+                    mod_keys_we_need_to_lift.remove(pressed_key)
+                    if modifier in mods_we_need_to_press:
+                        mods_we_need_to_press.remove(modifier)
+
+        # Lift conflicting input mods
+        for key in reversed(list(mod_keys_we_need_to_lift)):
+            self.send_key_action(key, RELEASE)
+            released_mod_keys.append(key)
+
+        # Press output mods
+        for key in [mod.get_key() for mod in mods_we_need_to_press]:
+            self.send_key_action(key, PRESS)
+            pressed_mod_keys.append(key)
+
+        # Press output key — leave it held (no release)
+        self.send_key_action(combo.key, PRESS)
+
+        return (released_mod_keys, pressed_mod_keys)
+
+    def send_combo_held_teardown(self, output_key, pressed_output_mods,
+                                    mods_to_restore):
+        """
+        Tear down a held combo: release output key, release output modifiers,
+        then restore whichever input modifiers are still physically held.
+
+        Args:
+            output_key:             Key that was held on output (to release).
+            pressed_output_mods:    List of output modifier Keys pressed during
+                                    setup (released in reverse order).
+            mods_to_restore:        List of input modifier Keys to re-press.
+                                    Caller (transform.py) filters this to only
+                                    include mods still physically held.
+        """
+        # Release the held output key
+        self.send_key_action(output_key, RELEASE)
+
+        # Release output mods in reverse order (mirror of setup)
+        for key in reversed(pressed_output_mods):
+            self.send_key_action(key, RELEASE)
+
+        # Restore input mods that are still physically held
+        for key in reversed(mods_to_restore):
+            self.send_key_action(key, PRESS)
+
     def send_combo(self, combo: Combo):
 
         # Track for cache
@@ -215,7 +290,7 @@ class Output:
                         mods_we_need_to_press.remove(modifier)
                     else:
                         debug(f"Skipping redundant removal of modifier: {modifier}")
-                    # TODO: The above "fix" needs to be deeply examined for possible side effects. 
+                    # TODO: The above "fix" needs to be deeply examined for possible side effects.
 
         # Moved throttle delays into send_key_action() above.
 

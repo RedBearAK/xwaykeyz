@@ -49,27 +49,27 @@ _sticky = {}
 class RepeatCache:
     """
     Cache for repeat key remapping results to avoid redundant transform_key() evaluation.
-    
+
     ONLY caches simple outputs:
     - 'passthrough': Direct key passthrough (no remapping)
     - 'combo': Single Combo output
     - 'key': Single Key output
-    
+
     Does NOT cache:
     - Callables/functions (need re-evaluation for fresh state)
     - Action lists (complex to track, rarely meant to repeat)
     - Nested keymaps (stateful)
-    
+
     These complex cases fall back to normal evaluation path (no performance loss,
     just no cache benefit). Most performance gain comes from simple repeating
     shortcuts like cursor movement (Emacs Ctrl+F/B) or gaming (WASD remaps).
-    
+
     Cached on key PRESS, replayed on REPEAT, invalidated on:
     - Different key press
     - Modifier state change
     - Key release
     - Nested keymap entry
-    
+
     Attributes:
         inkey: Input key that was remapped
         mods_held: Frozen snapshot of modifiers at press time (tuple of Key objects)
@@ -84,10 +84,46 @@ class RepeatCache:
     valid: bool = True
 
 
-_repeat_cache: "RepeatCache | None"     = None
-_modifiers_changed_since_cache          = False
-_awaiting_first_repeat_key              = None
-_first_repeat_processed                 = False
+@dataclass
+class HeldComboContext:
+    """
+    Context for a combo output being held on the virtual keyboard for
+    compositor-driven repeat.
+
+    Created on the first repeat event when the output is a single Combo.
+    The output key and modifiers stay pressed on the virtual device, and
+    incoming repeat events are suppressed. The compositor drives repeat
+    at the DE-configured rate.
+
+    Teardown fires when:
+    - The trigger key is released (normal case).
+    - Any new key is pressed (interleaved input).
+    - An input modifier from the original combo is released while the
+        trigger key is still held.
+
+    Attributes:
+        trigger_key:          Input key whose release triggers teardown.
+        output_combo:         The Combo being held on output.
+        released_input_mods:  Input modifier Keys that were lifted during setup.
+        pressed_output_mods:  Output modifier Keys that were pressed during setup.
+        output_key:           The non-modifier Key held on output.
+        setup_time:           time.time() at setup, for duration logging.
+        suppress_count:       Number of input repeat events suppressed during sustain.
+    """
+    trigger_key:            "Key"
+    output_combo:           "Combo"
+    released_input_mods:    "list[Key]"
+    pressed_output_mods:    "list[Key]"
+    output_key:             "Key"
+    setup_time:             float
+    suppress_count:         int = 0
+
+
+_repeat_cache: "RepeatCache | None"         = None
+_modifiers_changed_since_cache              = False
+_awaiting_first_repeat_key                  = None
+_first_repeat_processed                     = False
+_held_combo_ctx: "HeldComboContext | None"  = None
 
 
 def invalidate_repeat_cache():
@@ -114,36 +150,36 @@ def try_replay_cached_repeat(key: Key, action: Action):
     """
     Attempt to replay cached remapping result for repeat events.
     Returns True if cache hit and replay succeeded, False otherwise.
-    
+
     OPTIMIZED: Only checks modifier state if _modifiers_changed_since_cache flag is set.
     This reduces repeat overhead from ~15-25 ops to ~5-10 ops in common case.
     """
     global _repeat_cache, _modifiers_changed_since_cache
-    
+
     # No cache or cache invalidated
     if _repeat_cache is None or not _repeat_cache.valid:
         return False
-    
+
     # Different key repeating
     if key != _repeat_cache.inkey:
         return False
-    
+
     # OPTIMIZATION: Only check modifier state if flag indicates change
     if _modifiers_changed_since_cache:
         current_mods = _get_modifier_snapshot()
         _modifiers_changed_since_cache = False  # Clear flag after checking
-        
+
         if current_mods != _repeat_cache.mods_held:
             # Mods changed mid-repeat - invalidate and force re-evaluation
             invalidate_repeat_cache()
             if logger.VERBOSE:
                 debug("Modifier state changed during repeat - cache invalidated")
             return False
-    
+
     # Cache hit! Replay the cached output
     if logger.VERBOSE:
         debug(f"Repeat cache HIT for {key} - replaying cached {_repeat_cache.output_type}")
-    
+
     # Replay based on output type
     if _repeat_cache.output_type == 'passthrough':
         # For passthrough, send the current action (not the cached one)
@@ -156,7 +192,7 @@ def try_replay_cached_repeat(key: Key, action: Action):
         # Unknown type - shouldn't happen, but fall back to normal evaluation
         debug(f"Unknown cache output_type: {_repeat_cache.output_type}")
         return False
-    
+
     return True
 
 
@@ -165,28 +201,28 @@ def populate_repeat_cache(key: Key, action: Action):
     Populate the repeat cache from output tracking after successful transform.
     Only caches simple outputs (passthrough, combo, key).
     Complex outputs (callables, lists, nested keymaps) are not cached.
-    
+
     NOW CALLED ON FIRST REPEAT (not on PRESS) to avoid overhead for keys that don't repeat.
     """
     global _repeat_cache, _modifiers_changed_since_cache, _awaiting_first_repeat_key
-    
+
     # Only cache on first REPEAT event (not press)
     if not action.is_repeat:
         return
-    
+
     # Check if output was tracked (from previous PRESS event)
     if _output._last_output_for_cache is None:
         _awaiting_first_repeat_key = None  # Clear awaiting flag
         return
-    
+
     output_type, output_data = _output._last_output_for_cache
-    
+
     # Only cache simple output types
     if output_type not in ('passthrough', 'combo', 'key'):
         _awaiting_first_repeat_key = None  # Clear awaiting flag
         _output.clear_cache_tracking()
         return
-    
+
     # Don't cache when in nested keymap state
     if _active_keymaps is not None and _active_keymaps not in (escape_next_key, escape_next_combo):
         # Check if _active_keymaps is a list and not the top-level KEYMAPS
@@ -194,10 +230,10 @@ def populate_repeat_cache(key: Key, action: Action):
             _awaiting_first_repeat_key = None  # Clear awaiting flag
             _output.clear_cache_tracking()
             return
-    
+
     # Get current modifier snapshot
     mods_snapshot = _get_modifier_snapshot()
-    
+
     # Create the cache
     _repeat_cache = RepeatCache(
         inkey=key,
@@ -206,18 +242,111 @@ def populate_repeat_cache(key: Key, action: Action):
         output_data=output_data,
         valid=True
     )
-    
+
     # Reset modifier change flag since we just cached current state
     _modifiers_changed_since_cache = False
-    
+
     # Clear awaiting flag
     _awaiting_first_repeat_key = None
-    
+
     if logger.VERBOSE:
         debug(f"First repeat: Cache populated: {key} -> {output_type} with {len(mods_snapshot)} mods")
-    
+
     # Clear the output tracking now that cache is populated
     _output.clear_cache_tracking()
+
+
+def teardown_held_combo():
+    """
+    Tear down an active held combo, releasing the output key and modifiers,
+    and restoring input modifiers that are still physically held.
+
+    Safe to call when no held combo is active (no-op).
+    Logs a summary line with hold duration and suppressed repeat count.
+    """
+    global _held_combo_ctx
+    if _held_combo_ctx is None:
+        return
+
+    ctx = _held_combo_ctx
+    _held_combo_ctx = None
+
+    # Only restore input mods that are still physically held on the input side
+    mods_to_restore = [
+        k for k in ctx.released_input_mods
+        if k in _key_states and _key_states[k].key_is_pressed
+    ]
+
+    _output.send_combo_held_teardown(
+        ctx.output_key,
+        ctx.pressed_output_mods,
+        mods_to_restore,
+    )
+
+    duration = time.time() - ctx.setup_time
+    debug(
+        f"Held combo teardown: {ctx.output_key} held {duration:.2f}s, "
+        f"suppressed {ctx.suppress_count} repeats"
+    )
+
+
+def try_enter_held_combo(key):
+    """
+    Attempt to transition from tap-cycle repeat to held combo mode on the
+    first repeat event.
+
+    Checks the output tracking from the initial press. If it was a single
+    Combo (or single Key wrapped in a Combo), sets up held combo mode via
+    send_combo_held_setup() and populates the HeldComboContext.
+
+    Returns True if held combo mode was entered, False otherwise.
+    Falls back to the normal repeat cache path on False.
+    """
+    global _held_combo_ctx
+
+    # Need output tracking from the initial press
+    if _output._last_output_for_cache is None:
+        return False
+
+    output_type, output_data = _output._last_output_for_cache
+
+    # Determine the combo to hold
+    if output_type == 'combo' and isinstance(output_data, Combo):
+        combo = output_data
+    elif output_type == 'key' and isinstance(output_data, Key):
+        combo = Combo(None, output_data)
+    else:
+        # Not a single combo/key output — action list, callable, etc.
+        return False
+
+    # Don't enter held mode in nested keymap state
+    if _active_keymaps is not None:
+        if _active_keymaps not in (escape_next_key, escape_next_combo):
+            if isinstance(_active_keymaps, list) and _active_keymaps != _KEYMAPS:
+                return False
+
+    # Ask output to set up the held combo
+    result = _output.send_combo_held_setup(combo)
+    if result is None:
+        return False
+
+    released_input_mods, pressed_output_mods = result
+
+    _held_combo_ctx = HeldComboContext(
+        trigger_key         = key,
+        output_combo        = combo,
+        released_input_mods = released_input_mods,
+        pressed_output_mods = pressed_output_mods,
+        output_key          = combo.key,
+        setup_time          = time.time(),
+    )
+
+    _output.clear_cache_tracking()
+
+    if logger.VERBOSE:
+        debug(f"Held combo setup: {combo} (trigger: {key})")
+
+    return True
 
 
 def reset_transform():
@@ -229,6 +358,7 @@ def reset_transform():
     global _modifiers_changed_since_cache
     global _awaiting_first_repeat_key
     global _first_repeat_processed
+    global _held_combo_ctx
     _active_keymaps                     = None
     _output                             = Output()
     _key_states                         = {}
@@ -237,9 +367,11 @@ def reset_transform():
     _modifiers_changed_since_cache      = False
     _awaiting_first_repeat_key          = None
     _first_repeat_processed             = False
+    _held_combo_ctx                     = None
 
 
 def shutdown():
+    teardown_held_combo()
     _output.shutdown()
 
 # ============================================================ #
@@ -678,33 +810,68 @@ def on_key(keystate: Keystate, ctx):
         _output.send_key_action(key, action)
         return
 
+    # ⚡ HELD COMBO CHECK — Must fire before cache logic or any other processing.
+    # If a held combo is active, either sustain (suppress repeats) or teardown.
+    if _held_combo_ctx is not None:
+        if action.is_repeat and key == _held_combo_ctx.trigger_key:
+            # Sustain — suppress this input repeat, compositor drives output repeat
+            _held_combo_ctx.suppress_count += 1
+            if logger.VERBOSE:
+                debug(
+                    f"Held combo sustain: suppressed repeat "
+                    f"#{_held_combo_ctx.suppress_count} for {key}"
+                )
+            return
+
+        # Any other event tears down the held combo first.
+        # Capture trigger key before teardown clears the context.
+        was_trigger_release = (
+            action.is_released and key == _held_combo_ctx.trigger_key
+        )
+        teardown_held_combo()
+
+        if was_trigger_release:
+            # Trigger key release is consumed — teardown already released
+            # the output key. Just clean up input-side keystate tracking.
+            update_pressed_states(keystate)
+            return
+        # For all other teardown triggers (new key press, modifier release),
+        # fall through to process the event normally.
+
     # ⚡ CACHE LOGIC - Skip entirely when no cache exists (fast typing optimization)
     if _repeat_cache is not None:
         # Cache exists - do cache operations
         if action.is_repeat and try_replay_cached_repeat(key, action):
             return  # Cache hit - we're done!
-        
+
         # Invalidate cache when a different non-modifier key is pressed
         if action.just_pressed and not Modifier.is_key_modifier(key):
             if _repeat_cache.inkey != key:
                 invalidate_repeat_cache()
                 if logger.VERBOSE:
-                    debug(f"Cache invalidated: different key pressed ({key} vs cached {_repeat_cache.inkey})")
+                    debug(f"Cache invalidated: different key pressed ({key} vs "
+                            f"cached {_repeat_cache.inkey})")
         # Invalidate cache when the cached key is released
         elif action.is_released and key == _repeat_cache.inkey:
             invalidate_repeat_cache()
             if logger.VERBOSE:
                 debug(f"Cache invalidated: cached key released ({key})")
-    
+
     # Handle first repeat - cache miss but we have tracking from PRESS
     if action.is_repeat and not _first_repeat_processed and not Modifier.is_key_modifier(key):
-        _first_repeat_processed = True  # Latch - stops further attempts
-        # This is the first repeat - populate cache from preserved PRESS tracking
+        _first_repeat_processed = True  # Latch — stops further attempts
+
+        # Try held combo mode first — applies when output was a single Combo or Key.
+        # If entered, the output key stays held and compositor drives repeat.
+        if try_enter_held_combo(key):
+            return
+
+        # Not a held combo candidate — fall back to repeat cache as before.
         populate_repeat_cache(key, action)
         # Now replay from newly populated cache
         if _repeat_cache is not None and try_replay_cached_repeat(key, action):
             return
-    
+
     # Clear awaiting flag if DIFFERENT key pressed or awaiting key released
     if action.just_pressed and not Modifier.is_key_modifier(key):
         if _awaiting_first_repeat_key is not None and key.value != _awaiting_first_repeat_key:
@@ -819,14 +986,14 @@ def transform_key(key, action: Action, ctx: KeyContext):
     # New version of `escape_next_key` that doesn't strip out modifiers from next combo.
     # We need this to wait for a non-modifier key, then send through the unremapped combo (or key).
     # More complicated than just escaping the very next normal key press.
-    
+
     if _active_keymaps is escape_next_combo:
         # Ignore modifier keys and releases - wait for next actual keypress
         # Changing Action.is_released() to use a property decorator, for consistentcy.
         if Modifier.is_key_modifier(key) or action.is_released:
             _output.send_key_action(key, action)
             return  # Stay in escape mode, don't consume the flag
-        
+
         # This is a non-modifier key press - apply escape and consume flag
         debug(f"Escape combo: {combo} => {combo}")
         resume_keys()  # Ensure current modifiers are on output
