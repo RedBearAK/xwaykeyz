@@ -290,65 +290,6 @@ def teardown_held_combo():
     )
 
 
-def try_enter_held_combo(key):
-    """
-    Attempt to transition from tap-cycle repeat to held combo mode on the
-    first repeat event.
-
-    Checks the output tracking from the initial press. If it was a single
-    Combo (or single Key wrapped in a Combo), sets up held combo mode via
-    send_combo_held_setup() and populates the HeldComboContext.
-
-    Returns True if held combo mode was entered, False otherwise.
-    Falls back to the normal repeat cache path on False.
-    """
-    global _held_combo_ctx
-
-    # Need output tracking from the initial press
-    if _output._last_output_for_cache is None:
-        return False
-
-    output_type, output_data = _output._last_output_for_cache
-
-    # Determine the combo to hold
-    if output_type == 'combo' and isinstance(output_data, Combo):
-        combo = output_data
-    elif output_type == 'key' and isinstance(output_data, Key):
-        combo = Combo(None, output_data)
-    else:
-        # Not a single combo/key output — action list, callable, etc.
-        return False
-
-    # Don't enter held mode in nested keymap state
-    if _active_keymaps is not None:
-        if _active_keymaps not in (escape_next_key, escape_next_combo):
-            if isinstance(_active_keymaps, list) and _active_keymaps != _KEYMAPS:
-                return False
-
-    # Ask output to set up the held combo
-    result = _output.send_combo_held_setup(combo)
-    if result is None:
-        return False
-
-    released_input_mods, pressed_output_mods = result
-
-    _held_combo_ctx = HeldComboContext(
-        trigger_key         = key,
-        output_combo        = combo,
-        released_input_mods = released_input_mods,
-        pressed_output_mods = pressed_output_mods,
-        output_key          = combo.key,
-        setup_time          = time.time(),
-    )
-
-    _output.clear_cache_tracking()
-
-    if logger.VERBOSE:
-        debug(f"Held combo setup: {combo} (trigger: {key})")
-
-    return True
-
-
 def reset_transform():
     global _active_keymaps
     global _output
@@ -860,13 +801,7 @@ def on_key(keystate: Keystate, ctx):
     # Handle first repeat - cache miss but we have tracking from PRESS
     if action.is_repeat and not _first_repeat_processed and not Modifier.is_key_modifier(key):
         _first_repeat_processed = True  # Latch — stops further attempts
-
-        # Try held combo mode first — applies when output was a single Combo or Key.
-        # If entered, the output key stays held and compositor drives repeat.
-        if try_enter_held_combo(key):
-            return
-
-        # Not a held combo candidate — fall back to repeat cache as before.
+        # This is the first repeat - populate cache from preserved PRESS tracking
         populate_repeat_cache(key, action)
         # Now replay from newly populated cache
         if _repeat_cache is not None and try_replay_cached_repeat(key, action):
@@ -1091,7 +1026,7 @@ def handle_commands(commands, key, action, ctx, input_combo=None):
     """
     returns: reset_mode (True/False) if this is True, _active_keymaps will be reset
     """
-    global _active_keymaps
+    global _active_keymaps, _held_combo_ctx
     _next_bind = False
 
     if not isinstance(commands, list):
@@ -1124,7 +1059,30 @@ def handle_commands(commands, key, action, ctx, input_combo=None):
             elif isinstance(command, Combo):
                 if _next_bind:
                     auto_sticky(command, input_combo)
-                _output.send_combo(command)
+                    _output.send_combo(command)
+                elif (len(commands) != 1
+                        or input_combo is None
+                        or action is None
+                        or not action.just_pressed):
+                    _output.send_combo(command)
+                else:
+                    # Single Combo on initial press: use held combo for
+                    # compositor-driven repeat instead of tap cycle
+                    result = _output.send_combo_held_setup(command)
+                    if result is None:
+                        _output.send_combo(command)
+                    else:
+                        released_input_mods, pressed_output_mods = result
+                        _held_combo_ctx = HeldComboContext(
+                            trigger_key         = key,
+                            output_combo        = command,
+                            released_input_mods = released_input_mods,
+                            pressed_output_mods = pressed_output_mods,
+                            output_key          = command.key,
+                            setup_time          = time.time(),
+                        )
+                        if logger.VERBOSE:
+                            debug(f"Held combo setup: {command} (trigger: {key})")
             elif isinstance(command, Key):
                 _output.send_key(command)
             elif command is escape_next_key:
