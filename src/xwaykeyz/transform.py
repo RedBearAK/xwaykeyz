@@ -773,8 +773,12 @@ def on_key(keystate: Keystate, ctx):
 
         if was_trigger_release:
             # Trigger key release is consumed — teardown already released
-            # the output key. Just clean up input-side keystate tracking.
+            # the output key. Just clean up input-side keystate tracking
+            # and repeat cache state that would normally be cleared below.
             update_pressed_states(keystate)
+            _awaiting_first_repeat_key = None
+            _first_repeat_processed = False
+            _output.clear_cache_tracking()
             return
         # For all other teardown triggers (new key press, modifier release),
         # fall through to process the event normally.
