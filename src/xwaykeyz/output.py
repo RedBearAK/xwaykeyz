@@ -257,8 +257,12 @@ class Output:
                                     Caller (transform.py) filters this to only
                                     include mods still physically held.
         """
-        # Release the held output key
-        self.send_key_action(output_key, RELEASE)
+        # # Release the held output key
+        # self.send_key_action(output_key, RELEASE)
+
+        # Release the held output key FAST to stop repeat timer ASAP,
+        # ignoring user's possibly longer throttle delays.
+        self.send_key_action_fast(output_key, RELEASE)
 
         # Release output mods in reverse order (mirror of setup)
         for key in reversed(pressed_output_mods):
