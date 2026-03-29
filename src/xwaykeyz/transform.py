@@ -754,8 +754,9 @@ def on_key(keystate: Keystate, ctx):
     # ⚡ HELD COMBO CHECK — Must fire before cache logic or any other processing.
     # If a held combo is active, either sustain (suppress repeats) or teardown.
     if _held_combo_ctx is not None:
+
+        # Sustain — suppress trigger key repeats, compositor drives output
         if action.is_repeat and key == _held_combo_ctx.trigger_key:
-            # Sustain — suppress this input repeat, compositor drives output repeat
             _held_combo_ctx.suppress_count += 1
             if logger.VERBOSE:
                 debug(
@@ -764,24 +765,29 @@ def on_key(keystate: Keystate, ctx):
                 )
             return
 
-        # Any other event tears down the held combo first.
-        # Capture trigger key before teardown clears the context.
-        was_trigger_release = (
-            action.is_released and key == _held_combo_ctx.trigger_key
-        )
-        teardown_held_combo()
-
-        if was_trigger_release:
-            # Trigger key release is consumed — teardown already released
-            # the output key. Just clean up input-side keystate tracking
-            # and repeat cache state that would normally be cleared below.
+        # Trigger key release — teardown and consume the event
+        if action.is_released and key == _held_combo_ctx.trigger_key:
+            teardown_held_combo()
             update_pressed_states(keystate)
             _awaiting_first_repeat_key = None
             _first_repeat_processed = False
             _output.clear_cache_tracking()
             return
-        # For all other teardown triggers (new key press, modifier release),
-        # fall through to process the event normally.
+
+        # New key press — teardown first, then fall through to process it
+        if action.just_pressed:
+            teardown_held_combo()
+            # Fall through to normal processing for the new keypress
+
+        # Modifier release — combo is no longer valid as a unit, teardown
+        # then fall through to process the modifier release normally
+        elif action.is_released and Modifier.is_key_modifier(key):
+            teardown_held_combo()
+            # Fall through to normal processing for the modifier release
+
+        # Non-trigger, non-modifier release (e.g., releasing a previously
+        # held key unrelated to the active combo) — no teardown, just fall
+        # through to normal processing. The held combo stays active.
 
     # ⚡ CACHE LOGIC - Skip entirely when no cache exists (fast typing optimization)
     if _repeat_cache is not None:
