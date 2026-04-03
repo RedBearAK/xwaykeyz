@@ -25,7 +25,7 @@ A_Z_SPACE = [Key.SPACE, Key.A, Key.Z]
 # b0019:v0000:p0001:e0000:n51dc9927  (with optional @phys suffix)
 _synth_id_prefix_rgx = re.compile(
     r'^b[0-9a-f]{4}:v[0-9a-f]{4}:p[0-9a-f]{4}:e[0-9a-f]{4}:n[0-9a-f]{8}')
- 
+
 
 def check_input_permissions():
     """Check if user has appropriate permissions to /dev/input/ without requiring a keyboard"""
