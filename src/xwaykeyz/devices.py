@@ -2,6 +2,7 @@
 # Async startup version - waits for devices to be idle before grabbing
 
 import os
+import re
 import errno
 import asyncio
 import hashlib
@@ -19,6 +20,12 @@ from .output import VIRT_DEVICE_PREFIX
 QWERTY = [Key.Q, Key.W, Key.E, Key.R, Key.T, Key.Y]
 A_Z_SPACE = [Key.SPACE, Key.A, Key.Z]
 
+
+# Pattern to detect synthetic device IDs:
+# b0019:v0000:p0001:e0000:n51dc9927  (with optional @phys suffix)
+_synth_id_prefix_rgx = re.compile(
+    r'^b[0-9a-f]{4}:v[0-9a-f]{4}:p[0-9a-f]{4}:e[0-9a-f]{4}:n[0-9a-f]{8}')
+ 
 
 def check_input_permissions():
     """Check if user has appropriate permissions to /dev/input/ without requiring a keyboard"""
@@ -404,6 +411,7 @@ class DeviceRegistry:
                 pass
 
 
+
 class DeviceFilter:
     def __init__(self, matches, ignores=None):
         self.matches = matches
@@ -418,18 +426,38 @@ class DeviceFilter:
                 info(f"    '{ignored}'")
 
     @staticmethod
-    def _device_matches(device: InputDevice, candidate):
-        """Check if a candidate string matches a device by path, name, or uniq.
+    def _device_matches(device, candidate):
+        """Check if a candidate string matches a device by path, name,
+        uniq, or synthetic ID.
 
         Path candidates (starting with '/') are resolved through realpath
         so that /dev/input/by-id/ symlinks match correctly.
+
+        Synthetic ID candidates (matching the b____:v____:... pattern) are
+        compared against the device's computed synthetic ID. If the candidate
+        includes an @phys suffix, the full ID must match. If the candidate
+        omits the @phys suffix, only the model+name portion is compared,
+        matching any device with those identifiers regardless of bus path.
         """
+        # Synthetic ID match
+        if _synth_id_prefix_rgx.match(candidate):
+            full_synth_id = Devices._build_synth_id(device)
+            # Candidate includes @phys — require exact full match
+            if '@' in candidate:
+                return full_synth_id == candidate
+            # Candidate is model+name only — compare without @phys
+            short_synth_id = full_synth_id.split('@', 1)[0]
+            return short_synth_id == candidate
+
+        # Path match (resolve symlinks for by-id support)
         if candidate.startswith('/'):
             return os.path.realpath(candidate) == os.path.realpath(device.path)
 
+        # Name match
         if device.name == candidate:
             return True
 
+        # Uniq match (serial number, MAC address, etc.)
         if device.uniq and device.uniq == candidate:
             return True
 
