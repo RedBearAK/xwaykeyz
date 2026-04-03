@@ -64,7 +64,7 @@ _ENVIRON = {
 def devices_api(*,
         only_devices: List[str]=[],
         # add_devices: List[str]=[],
-        # ignore_devices: List[str]=[]
+        ignore_devices: List[str]=[],
         ):
     """
     API function to specify device names to A) replicate the command-line
@@ -73,8 +73,11 @@ def devices_api(*,
     to C) ignore (for instances where a device does get grabbed, but should
     not be grabbed at startup).
 
-    TODO: Some work will need to be done in the grab function to filter
-    out the devices to ignore. The CLI option only sets devices to grab.
+    Matching is done by exact device name, exact device path, by-id symlink
+    path (resolved through realpath), or device uniq string.
+
+    The ignore list takes priority over the allowlist — if a device appears
+    in both, it will be ignored.
 
     Populates the `_DEVICE_ARGS` dictionary variable, to be returned to
     `transform.py` when `get_configuration()` is called.
@@ -95,20 +98,16 @@ def devices_api(*,
 
     validate_list_of_strings(only_devices, 'only_devices')
     # validate_list_of_strings(add_devices, 'add_devices')
-    # validate_list_of_strings(ignore_devices, 'ignore_devices')
+    validate_list_of_strings(ignore_devices, 'ignore_devices')
 
     # if add_devices:
     #     error("The 'add_devices' parameter is not supported yet. Setting to empty list.")
     #     add_devices = []
 
-    # if ignore_devices:
-    #     error("The 'ignore_devices' parameter is not supported yet. Setting to empty list.")
-    #     ignore_devices = []
-
     _DEVICE_ARGS = {
         'only_devices':     only_devices,
         # 'add_devices':      add_devices,
-        # 'ignore_devices':   ignore_devices
+        'ignore_devices':   ignore_devices,
     }
 
 

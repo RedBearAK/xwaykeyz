@@ -78,7 +78,8 @@ async def wakeup_output():
     logger.VERBOSE = _verbose_state
 
 
-def main_loop(arg_devices, device_watch):
+
+def main_loop(arg_devices, device_watch, ignore_devices=None):
     inotify = None
 
     boot_config()
@@ -88,7 +89,9 @@ def main_loop(arg_devices, device_watch):
 
     loop = get_or_create_event_loop()
     registry = DeviceRegistry(
-        loop, input_cb=receive_input, filterer=DeviceFilter(arg_devices)
+        loop,
+        input_cb=receive_input,
+        filterer=DeviceFilter(arg_devices, ignores=ignore_devices),
     )
 
     async def async_startup():

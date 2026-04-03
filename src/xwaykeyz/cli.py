@@ -204,13 +204,13 @@ Please check access permissions for /dev/uinput."""
 
     ###############################################################################################
     # Let the user pass in devices args from the config file with the `devices_api()` function,
-    # instead of using `--devices` on command line. 
+    # instead of using `--devices` on command line.
 
     from xwaykeyz.config_api import _DEVICE_ARGS
 
     _only_devices: List[str]        = _DEVICE_ARGS['only_devices']
-    # _add_devices: List[str]         = _DEVICE_ARGS['add_devices']
-    # _ignore_devices: List[str]      = _DEVICE_ARGS['ignore_devices']
+    # _add_devices: List[str]       = _DEVICE_ARGS['add_devices']
+    _ignore_devices: List[str]      = _DEVICE_ARGS['ignore_devices']
 
     # Override with API input only if no CLI input
     if not args.devices and _only_devices:
@@ -220,11 +220,10 @@ Please check access permissions for /dev/uinput."""
     elif args.devices:
         debug(f"Using device arguments from command line '--devices' option...")
 
-    # 
+    #
     ###############################################################################################
 
     # Enter event loop
     from xwaykeyz.input import main_loop
 
-    main_loop(args.devices, args.watch)
-
+    main_loop(args.devices, args.watch, _ignore_devices)

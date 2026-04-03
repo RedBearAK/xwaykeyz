@@ -4,10 +4,11 @@
 import os
 import errno
 import asyncio
+import hashlib
 import time
 
 from asyncio import AbstractEventLoop
-from evdev import InputDevice, ecodes, list_devices
+from evdev import ecodes, InputDevice, InputEvent, list_devices
 from typing import List
 
 from .lib.logger import debug, error, info
@@ -89,32 +90,97 @@ class Devices:
         return devices
 
     @staticmethod
+    def _event_number(device: InputDevice):
+        """Extract numeric event ID from device path for sorting."""
+        # device.path is like '/dev/input/event6'
+        name = os.path.basename(device.path)
+        if isinstance(name, str) and name.startswith('event'):
+            try:
+                return int(name[5:])
+            except ValueError:
+                pass
+        return float('inf')
+
+    @staticmethod
+    def _build_by_id_map():
+        """Build a reverse lookup from realpath → by-id symlink name."""
+        by_id_dir = '/dev/input/by-id'
+        by_id_map = {}
+        if not os.path.isdir(by_id_dir):
+            return by_id_map
+        try:
+            for entry in os.listdir(by_id_dir):
+                full_path = os.path.join(by_id_dir, entry)
+                if os.path.islink(full_path):
+                    real = os.path.realpath(full_path)
+                    by_id_map[real] = entry
+        except OSError:
+            pass
+        return by_id_map
+
+    @staticmethod
+    def _build_synth_id(device: InputDevice):
+        """Build a synthetic device identifier from kernel info fields
+        and a short hash of the device name, with optional phys suffix."""
+        info        = device.info
+        name_hash   = hashlib.md5(device.name.encode()).hexdigest()[:8]
+        synth_id    = (
+            f"b{info.bustype:04x}:v{info.vendor:04x}"
+            f":p{info.product:04x}:e{info.version:04x}"
+            f":n{name_hash}"
+        )
+        phys = device.phys if device.phys else ''
+        if phys:
+            synth_id += f"@{phys}"
+        return synth_id
+
+    @staticmethod
     def print_list():
-        # Get all devices
-        devices = Devices.all()
+        """Print all input devices in a readable multi-line format."""
 
-        # Define column widths
-        DEVICE_WIDTH = 20
-        NAME_WIDTH = 35
+        devices: 'list[InputDevice]' = Devices.all()
+        if not devices:
+            print("No input devices found.")
+            print()
+            return
 
-        # Calculate the total width needed for the table
-        max_phys_length = max(len(device.phys) for device in devices) if devices else 0
-        total_width = DEVICE_WIDTH + NAME_WIDTH + max_phys_length + 3  # +3 for spaces between columns
+        # Sort by event number for predictable ordering
+        devices.sort(key=Devices._event_number)
 
-        # Print header
-        print("-" * total_width)
-        print(f"{'Device':<{DEVICE_WIDTH}} {'Name':<{NAME_WIDTH}} {'Phys'}")
-        print("-" * total_width)
+        # Build reverse lookup for by-id symlinks
+        by_id_map = Devices._build_by_id_map()
 
-        # Print each device
+        sep = "               --"
+
+        print(  '\n  The "Synthetic ID" string is composed of evdev-reported info:\n'
+                '  bustype : vendor : product : version : name_hash @ physical_bus\n'
+        )
+
+        # print(sep)
+
         for device in devices:
-            if len(device.name) > NAME_WIDTH:
-                # Handle long names by printing on two lines
-                print(f"{device.path:<{DEVICE_WIDTH}} {device.name[:NAME_WIDTH]:<{NAME_WIDTH}}")
-                print(f"{'':<{DEVICE_WIDTH + NAME_WIDTH}} {device.phys}")
-            else:
-                # Print everything on one line
-                print(f"{device.path:<{DEVICE_WIDTH}} {device.name:<{NAME_WIDTH}} {device.phys}")
+            by_id_name  = by_id_map.get(os.path.realpath(device.path), '')
+            phys        = device.phys if device.phys else ''
+            uniq        = device.uniq if device.uniq else ''
+            synth_id    = Devices._build_synth_id(device)
+
+            print(f"  Device Path:   {device.path}")
+
+            if phys:
+                print(f"  Bus Path:      {phys}")
+
+            print(f"  Device Name:   {device.name}")
+
+            if by_id_name:
+                print(f"  Device ID:     {by_id_name}")
+
+            if uniq:
+                print(f"  Device Uniq:   {uniq}")
+
+            print(f"  Synthetic ID:  {synth_id}")
+
+            print(sep)
+
 
         print()
 
@@ -199,9 +265,9 @@ class DeviceRegistry:
         
         Returns True if device became idle, False if timed out or device error.
         """
-        start_time = time.monotonic()
-        last_activity = time.monotonic()
-        poll_interval = 0.02        # 20ms between checks
+        start_time              = time.monotonic()
+        last_activity           = time.monotonic()
+        poll_interval           = 0.02        # 20ms between checks
         
         while time.monotonic() - start_time < max_wait:
             # Check instantaneous key state
@@ -220,7 +286,7 @@ class DeviceRegistry:
             # This just lets us detect activity.
             try:
                 while True:
-                    event = device.read_one()
+                    event: InputEvent = device.read_one()
                     if event is None:
                         break
                     # Only keyboard key events reset the idle timer - ignore EV_REL
@@ -261,8 +327,8 @@ class DeviceRegistry:
         # Wait for sustained quiet period with no keys held and no buffered events.
         # This catches both held keys and rapid tap-tap-tap patterns.
         
-        max_idle_wait = 5.0         # Maximum seconds to wait for device to be idle
-        quiet_period = 0.15         # Require 150ms of silence before grabbing
+        max_idle_wait           = 5.0       # Maximum seconds to wait for device to be idle
+        quiet_period            = 0.15      # Require 150ms of silence before grabbing
         
         idle_ok = await self._wait_for_device_idle(device, max_idle_wait, quiet_period)
         
@@ -339,10 +405,35 @@ class DeviceRegistry:
 
 
 class DeviceFilter:
-    def __init__(self, matches):
+    def __init__(self, matches, ignores=None):
         self.matches = matches
+        self.ignores = ignores or []
+
         if not matches:
             info("Autodetecting all keyboards (no '--devices' option or 'devices_api' used)")
+
+        if self.ignores:
+            info(f"Ignore list active for {len(self.ignores)} device(s):")
+            for ignored in self.ignores:
+                info(f"    '{ignored}'")
+
+    @staticmethod
+    def _device_matches(device: InputDevice, candidate):
+        """Check if a candidate string matches a device by path, name, or uniq.
+
+        Path candidates (starting with '/') are resolved through realpath
+        so that /dev/input/by-id/ symlinks match correctly.
+        """
+        if candidate.startswith('/'):
+            return os.path.realpath(candidate) == os.path.realpath(device.path)
+
+        if device.name == candidate:
+            return True
+
+        if device.uniq and device.uniq == candidate:
+            return True
+
+        return False
 
     def is_virtual_device(self, device: InputDevice):
         if VIRT_DEVICE_PREFIX in device.name:
@@ -356,11 +447,21 @@ class DeviceFilter:
         return False
 
     def filter(self, device: InputDevice):
+
+        # Check ignore list first — takes priority over everything,
+        # including an explicit allowlist from only_devices/--devices.
+        if self.ignores:
+            for ignored in self.ignores:
+                if self._device_matches(device, ignored):
+                    info(f"Ignoring device per ignore_devices: "
+                            f"'{device.name}' ({device.path})")
+                    return False
+
         # Match by device path or name, if no keyboard devices specified,
         # picks up keyboard-ish devices.
         if self.matches:
             for match in self.matches:
-                if device.path == match or device.name == match:
+                if self._device_matches(device, match):
                     return True
             return False
 
@@ -370,5 +471,6 @@ class DeviceFilter:
 
         # Exclude none keyboard devices
         return Devices.is_keyboard(device)
+
 
 # End of file #
