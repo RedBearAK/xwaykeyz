@@ -408,7 +408,6 @@ class DeviceRegistry:
                 pass
 
 
-
 class DeviceFilter:
     def __init__(self, matches, ignores=None):
         self.matches = matches
@@ -479,7 +478,9 @@ class DeviceFilter:
             for ignored in self.ignores:
                 if self._device_matches(device, ignored):
                     info(f"Ignoring device per ignore_devices: "
-                            f"'{device.name}' ({device.path})")
+                            f"{device.path} ('{device.name}')")
+                    if ignored != device.path:
+                        info(f"    resolved from: '{ignored}'")
                     return False
 
         # Match by device path or name, if no keyboard devices specified,
