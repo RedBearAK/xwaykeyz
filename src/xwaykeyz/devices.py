@@ -110,7 +110,7 @@ class Devices:
 
     @staticmethod
     def _build_by_id_map():
-        """Build a reverse lookup from realpath → by-id symlink name."""
+        """Build a reverse lookup from realpath → by-id symlink full path."""
         by_id_dir = '/dev/input/by-id'
         by_id_map = {}
         if not os.path.isdir(by_id_dir):
@@ -120,7 +120,7 @@ class Devices:
                 full_path = os.path.join(by_id_dir, entry)
                 if os.path.islink(full_path):
                     real = os.path.realpath(full_path)
-                    by_id_map[real] = entry
+                    by_id_map[real] = full_path
         except OSError:
             pass
         return by_id_map
@@ -163,10 +163,8 @@ class Devices:
                 '  bustype : vendor : product : version : name_hash @ physical_bus\n'
         )
 
-        # print(sep)
-
         for device in devices:
-            by_id_name  = by_id_map.get(os.path.realpath(device.path), '')
+            by_id_path  = by_id_map.get(os.path.realpath(device.path), '')
             phys        = device.phys if device.phys else ''
             uniq        = device.uniq if device.uniq else ''
             synth_id    = Devices._build_synth_id(device)
@@ -178,8 +176,8 @@ class Devices:
 
             print(f"  Device Name:   {device.name}")
 
-            if by_id_name:
-                print(f"  Device ID:     {by_id_name}")
+            if by_id_path:
+                print(f"  Device ID:     {by_id_path}")
 
             if uniq:
                 print(f"  Device Uniq:   {uniq}")
@@ -187,7 +185,6 @@ class Devices:
             print(f"  Synthetic ID:  {synth_id}")
 
             print(sep)
-
 
         print()
 
