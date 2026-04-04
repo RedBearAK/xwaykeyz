@@ -422,7 +422,7 @@ class DeviceFilter:
                 info(f"    '{ignored}'")
 
     @staticmethod
-    def _device_matches(device, candidate):
+    def _device_matches(device: InputDevice, candidate: str):
         """Check if a candidate string matches a device by path, name,
         uniq, or synthetic ID.
 
@@ -477,7 +477,7 @@ class DeviceFilter:
         if self.ignores:
             for ignored in self.ignores:
                 if self._device_matches(device, ignored):
-                    info(f"Ignoring device per ignore_devices: "
+                    info(f"Ignoring device: "
                             f"{device.path} ('{device.name}')")
                     if ignored != device.path and ignored != device.name:
                         info(f"    resolved from: '{ignored}'")
