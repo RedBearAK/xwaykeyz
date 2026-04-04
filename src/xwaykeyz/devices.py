@@ -479,7 +479,7 @@ class DeviceFilter:
                 if self._device_matches(device, ignored):
                     info(f"Ignoring device per ignore_devices: "
                             f"{device.path} ('{device.name}')")
-                    if ignored != device.path:
+                    if ignored != device.path and ignored != device.name:
                         info(f"    resolved from: '{ignored}'")
                     return False
 
