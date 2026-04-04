@@ -418,7 +418,7 @@ class DeviceFilter:
         self.ignores = ignores or []
 
         if not matches:
-            info("Autodetecting all keyboards (no '--devices' option or 'devices_api' used)")
+            info("Autodetecting all keyboards (no allowlist specified)")
 
         if self.ignores:
             info(f"Ignore list active for {len(self.ignores)} device(s):")
