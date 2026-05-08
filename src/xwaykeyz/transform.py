@@ -271,10 +271,17 @@ def teardown_held_combo():
     ctx = _held_combo_ctx
     _held_combo_ctx = None
 
-    # Only restore input mods that are still physically held on the input side
+    # Build a set of currently-pressed output-side identities. Keystates are
+    # keyed on inkey (pre-modmap), but released_input_mods came from the
+    # output side (_pressed_modifier_keys, post-modmap), so we have to
+    # match on keystate.key, not the dict key.
+    pressed_output_keys = {
+        ks.key for ks in _key_states.values() if ks.key_is_pressed
+    }
+
     mods_to_restore = [
         k for k in ctx.released_input_mods
-        if k in _key_states and _key_states[k].key_is_pressed
+        if k in pressed_output_keys
     ]
 
     _output.send_combo_held_teardown(
