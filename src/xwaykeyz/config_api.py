@@ -7,11 +7,13 @@ import inspect
 
 from inspect import signature
 from pprint import pformat as ppf
-from typing import Dict, List, Optional
 
-from .lib.logger import error, debug, info, warn, FLUSH
-from .lib import window_context
+# Removed typing imports (Dict, List) to avoid trouble with Python 3.15+
+# from typing import Dict, List
+
+from .lib.logger import error, debug, warn, FLUSH
 from .lib.key_context import KeyContext
+from .lib.window_context import WindowContextProviderInterface as WCPI
 from .models.action import Action
 from .models.combo import Combo, ComboHint
 from .models.trigger import Trigger
@@ -30,11 +32,11 @@ immediately                     = Trigger.IMMEDIATELY
 
 # keycode translation
 # e.g., { Key.CAPSLOCK: Key.LEFT_CTRL }
-_MODMAPS: List[Modmap] = []
+_MODMAPS: 'list[Modmap]' = []
 
 # multipurpose keys
 # e.g, {Key.LEFT_CTRL: [Key.ESC, Key.LEFT_CTRL, Action.RELEASE]}
-_MULTI_MODMAPS: List[MultiModmap] = []
+_MULTI_MODMAPS: 'list[MultiModmap]' = []
 
 TIMEOUT_DEFAULTS = {
     "multipurpose": 1.0,
@@ -46,7 +48,7 @@ TIMEOUT_DEFAULTS = {
 # multipurpose timeout
 _TIMEOUTS = TIMEOUT_DEFAULTS
 
-_DEVICE_ARGS: Dict[str, str] = {
+_DEVICE_ARGS: 'dict[str, str]' = {
     'only_devices': [],
     'add_devices': [],
     'ignore_devices': [],
@@ -62,9 +64,9 @@ _ENVIRON = {
 
 
 def devices_api(*,
-        only_devices: List[str]=[],
-        # add_devices: List[str]=[],
-        ignore_devices: List[str]=[],
+        only_devices: 'list[str]' = [],
+        # add_devices: 'list[str]' = [],
+        ignore_devices: 'list[str]' = [],
         ):
     """
     API function to specify device names to A) replicate the command-line
@@ -112,26 +114,12 @@ def devices_api(*,
 
 
 
-# make window_context provider classes self-documenting
 def get_all_supported_environments():
-    supported_environments = []
-
-    # Get all classes in the window context module
-    all_classes = inspect.getmembers(window_context, inspect.isclass)
-
-    # shorter reference for long interface class name in 'if' condition below
-    WinCtxProvIface = window_context.WindowContextProviderInterface
-
-    # Iterate through each class
-    for name, obj in all_classes:
-        # If the class is a subclass of WindowContextProviderInterface
-        # (but not the base class itself)
-        if issubclass(obj, WinCtxProvIface) and obj is not WinCtxProvIface:
-            # Add the environments that this provider supports to the list
-            supported_environments.extend(obj.get_supported_environments())
-
-    # debug(f'get_all_supported_environments: {supported_environments = }')
-    return supported_environments
+    """Get the full list of supported environments from the
+    window context module's registry of supported environments
+    advertised by all providers in the module. The form is
+    a list of (session_type, window_manager) tuples."""
+    return WCPI.get_all_supported_environments()
 
 
 def environ_api(*, session_type='x11', wl_compositor=None, wl_desktop_env=None):
@@ -153,20 +141,6 @@ def environ_api(*, session_type='x11', wl_compositor=None, wl_desktop_env=None):
     if isinstance(session_type, str):       session_type        = session_type.casefold()
     if isinstance(wl_compositor, str):      wl_compositor       = wl_compositor.casefold()
     if isinstance(wl_desktop_env, str):     wl_desktop_env      = wl_desktop_env.casefold()
-
-    # # Store the original argument values in "private" shadow copies
-    # _wl_compositor              = wl_compositor
-    # _wl_desktop_env             = wl_desktop_env
-
-    # # ESSENTIAL GUARD CLAUSE: 
-    # # Reset wl_compositor/wl_desktop_env to `None` if session is X11/Xorg.
-    # # Compositor or desktop is only relevant for Wayland session type.
-    # # Having anything besides `None` as Wayland compositor or desktop environment
-    # # arguments will not match the X11/Xorg provider.
-    # # This will match environment ('x11', None) from X11/Xorg context provider
-    # if session_type == 'x11':
-    #     wl_compositor           = None
-    #     wl_desktop_env          = None
 
     # Get the currently supported environments currently being 
     # advertized by provider classes in the window context module.
@@ -323,7 +297,7 @@ def ignore_repeating_keys(true_or_false: bool = False):
 
 
 # keymaps
-_KEYMAPS: List[Keymap] = []
+_KEYMAPS: 'list[Keymap]' = []
 
 # hotkeys for debugging
 DUMP_DIAGNOSTICS_KEY = Key.F15
