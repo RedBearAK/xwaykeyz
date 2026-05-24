@@ -1,10 +1,10 @@
 from ..models.key import Key
 from evdev import InputDevice
-from .window_context import WindowContextProvider, NO_CONTEXT_WAS_ERROR
+from .window_context import WindowContextProviderInterface as WCPI, NO_CONTEXT_WAS_ERROR
 
 
 class KeyContext:
-    def __init__(self, device: InputDevice, window_context: WindowContextProvider):
+    def __init__(self, device: InputDevice, window_context: WCPI):
         self._X_ctx = None
         self._device = device
         self._win_ctx_provider = window_context
