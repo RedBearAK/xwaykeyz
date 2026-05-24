@@ -614,8 +614,9 @@ def find_keystate_or_new(inkey, action):
 session_type    = _ENVIRON['session_type']
 wl_compositor   = _ENVIRON['wl_compositor']
 
-from .lib.window_context import WindowContextProvider
-window_context                  = WindowContextProvider(session_type, wl_compositor)
+from .lib.window_context import WindowContextProviderInterface as WCPI
+
+window_context                  = WCPI.make_provider(session_type, wl_compositor)
 _last_press_ctx_data            = {"wm_class": "", "wm_name": "", "wndw_ctxt_error": False}
 
 ignore_repeating_keys = _REPEATING_KEYS['ignore_repeating_keys']

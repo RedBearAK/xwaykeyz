@@ -14,23 +14,56 @@ import subprocess
 from random import randint
 from subprocess import PIPE
 from i3ipc import Con
-from typing import Dict, Optional
+
+# Removing the typing import to avoid trouble with Python 3.15+
+# from typing import Dict, Optional
 
 from .logger import error, debug
 
 # Provider classes for window context info
-
-# Place new provider classes above the generic class at the end to
-# facilitate automatic inclusion in the list of supported environments
-# and automatic redirection from the generic provider class to the
-# matching specific provider class suitable for the environment.
 
 
 NO_CONTEXT_WAS_ERROR = {"wm_class": "", "wm_name": "", "wndw_ctxt_error": True}
 
 
 class WindowContextProviderInterface(abc.ABC):
-    """Abstract base class for all window context provider classes"""
+    """Abstract base class for all window context provider classes."""
+
+    _environment_registry:  'dict[tuple, type]' = {}
+    _instantiation_used:    bool = False
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if 'get_supported_environments' not in cls.__dict__:
+            return
+        if cls.__name__.startswith('Example'):
+            return
+        for env in cls.get_supported_environments():
+            WindowContextProviderInterface._environment_registry[env] = cls
+
+    @classmethod
+    def make_provider(cls, session_type, wl_compositor):
+        """Construct the window context provider for this session.
+        Raises RuntimeError on a second call — only one per process."""
+        if WindowContextProviderInterface._instantiation_used:
+            raise RuntimeError(
+                "make_provider() has already been called this session. "
+                "Reuse the existing instance from transform.window_context "
+                "instead of constructing a new one."
+            )
+
+        env = (session_type, wl_compositor)
+        if env not in cls._environment_registry:
+            raise ValueError(f"Unsupported environment: {env}")
+
+        WindowContextProviderInterface._instantiation_used = True
+        return cls._environment_registry[env]()
+
+    @classmethod
+    def get_all_supported_environments(cls):
+        """Return the list of all (session_type, window_manager) tuples
+        that have a registered provider class."""
+        return list(cls._environment_registry.keys())
 
     @classmethod
     @abc.abstractmethod
@@ -856,7 +889,7 @@ class Wl_GNOME_WindowContext(WindowContextProviderInterface):
 
         # use get() with default value to avoid KeyError for 
         # GNOME Shell/desktop lack of properties returned
-        active_window_dct: Dict[str:str]
+        active_window_dct: 'dict[str, str]'
         wm_class            = active_window_dct.get('wm_class', '')
         wm_name             = active_window_dct.get('title', '')
 
@@ -976,47 +1009,3 @@ class Xorg_WindowContext(WindowContextProviderInterface):
             return None
 
         return window
-
-
-###############################################################################################
-# ALL SPECIFIC PROVIDER CLASSES MUST BE DEFINED BEFORE/ABOVE THIS GENERIC PROVIDER!!!
-# This class is responsible for making a list of the environments supported
-# by all the specific provider classes in this module, and redirecting the
-# rest of the keymapper code to the correct specific provider. 
-
-# Generic class for the rest of the code to interact with
-class WindowContextProvider(WindowContextProviderInterface):
-    """generic object to provide correct window context to KeyContext"""
-    _instance = None
-
-    # Mapping of environments to provider classes
-    environment_class_map = {
-        env: cls for cls in WindowContextProviderInterface.__subclasses__()
-        for env in cls.get_supported_environments()
-    }
-
-    def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._instance = super(WindowContextProvider, cls).__new__(cls)
-        return cls._instance
-
-    def __init__(self, session_type, wl_desktop_env) -> None:
-
-        env = (session_type, wl_desktop_env)
-        if env not in self.environment_class_map:
-            raise ValueError(f"Unsupported environment: {env}")
-
-        self._provider = self.environment_class_map[env]()
-
-    def get_window_context(self):
-        return self._provider.get_window_context()
-
-    @classmethod
-    def get_supported_environments(cls):
-        # This generic class does not directly support any environments
-        return []
-
-# ALL SPECIFIC PROVIDER CLASSES MUST BE DEFINED BEFORE/ABOVE THIS GENERIC PROVIDER!!!
-# This class is responsible for making a list of the environments supported
-# by all the specific provider classes in this module, and redirecting the
-# rest of the keymapper code to the correct specific provider. 
