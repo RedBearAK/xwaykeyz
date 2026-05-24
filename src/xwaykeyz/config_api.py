@@ -7,10 +7,12 @@ import inspect
 
 from inspect import signature
 from pprint import pformat as ppf
-from typing import Dict, List, Optional
 
-from .lib.logger import error, debug, info, warn, FLUSH
+# Removed typing imports (Dict, List) to avoid trouble with Python 3.15+
+# from typing import Dict, List
+
 from .lib import window_context
+from .lib.logger import error, debug, warn, FLUSH
 from .lib.key_context import KeyContext
 from .models.action import Action
 from .models.combo import Combo, ComboHint
@@ -30,11 +32,11 @@ immediately                     = Trigger.IMMEDIATELY
 
 # keycode translation
 # e.g., { Key.CAPSLOCK: Key.LEFT_CTRL }
-_MODMAPS: List[Modmap] = []
+_MODMAPS: 'list[Modmap]' = []
 
 # multipurpose keys
 # e.g, {Key.LEFT_CTRL: [Key.ESC, Key.LEFT_CTRL, Action.RELEASE]}
-_MULTI_MODMAPS: List[MultiModmap] = []
+_MULTI_MODMAPS: 'list[MultiModmap]' = []
 
 TIMEOUT_DEFAULTS = {
     "multipurpose": 1.0,
@@ -46,7 +48,7 @@ TIMEOUT_DEFAULTS = {
 # multipurpose timeout
 _TIMEOUTS = TIMEOUT_DEFAULTS
 
-_DEVICE_ARGS: Dict[str, str] = {
+_DEVICE_ARGS: 'dict[str, str]' = {
     'only_devices': [],
     'add_devices': [],
     'ignore_devices': [],
@@ -62,9 +64,9 @@ _ENVIRON = {
 
 
 def devices_api(*,
-        only_devices: List[str]=[],
-        # add_devices: List[str]=[],
-        ignore_devices: List[str]=[],
+        only_devices: 'list[str]' = [],
+        # add_devices: 'list[str]' = [],
+        ignore_devices: 'list[str]' = [],
         ):
     """
     API function to specify device names to A) replicate the command-line
@@ -323,7 +325,7 @@ def ignore_repeating_keys(true_or_false: bool = False):
 
 
 # keymaps
-_KEYMAPS: List[Keymap] = []
+_KEYMAPS: 'list[Keymap]' = []
 
 # hotkeys for debugging
 DUMP_DIAGNOSTICS_KEY = Key.F15
