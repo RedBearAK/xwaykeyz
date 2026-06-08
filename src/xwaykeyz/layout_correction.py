@@ -33,21 +33,32 @@ _inverse_map: 'dict[Key, Key]' = {}
 _correction_label: str = _NO_LABEL
 
 
+def _format_correction_map(mapping: 'dict[Key, Key]') -> str:
+    """Render a correction map as one 'in -> out' entry per line, tab-indented
+    and sorted by keycode, for readable logging of these (rare) install events."""
+    if not mapping:
+        return '\t(empty)'
+    return '\n'.join(
+        f"\t{in_key!r}  ->  {out_key!r}"
+        for in_key, out_key in sorted(mapping.items())
+    )
+
+
 def set_correction_map(correction_map: 'dict[int, int] | None', label: str = _NO_LABEL):
     """
     Install a new keycode correction map (atomic reference rebind).
 
-    correction_map  - flat {physical_keycode: us_keycode} map of raw kernel
-                      (evdev) keycodes, or empty/None for "nothing to correct"
-                      (the common case on US-like layouts). The analyzer has
-                      already resolved XKB's +8 keycode offset, and Key is
-                      evdev-based, so the codes map straight to Key objects with
-                      no adjustment here. The inverse {us: physical} is derived
-                      from the forward map for output de-correction.
-    label           - human-readable layout name, supplied by the detection side
-                      purely so the keymapper can name the active layout in its
-                      own logs. Never parsed or acted on; the keymapper does no
-                      layout reasoning.
+    correction_map    - flat {physical_keycode: us_keycode} map of raw kernel
+                        (evdev) keycodes, or empty/None for "nothing to correct"
+                        (the common case on US-like layouts). The analyzer has
+                        already resolved XKB's +8 keycode offset, and Key is
+                        evdev-based, so the codes map straight to Key objects with
+                        no adjustment here. The inverse {us: physical} is derived
+                        from the forward map for output de-correction.
+    label             - human-readable layout name, supplied by the detection side
+                        purely so the keymapper can name the active layout in its
+                        own logs. Never parsed or acted on; the keymapper does no
+                        layout reasoning.
 
     Called from the layout-detection coordinator's callback on the detector's
     watcher thread. A malformed map (a keycode not in the Key enum) is rejected
@@ -66,17 +77,19 @@ def set_correction_map(correction_map: 'dict[int, int] | None', label: str = _NO
         forward = {Key(in_code): Key(out_code) for in_code, out_code in raw.items()}
     except ValueError as key_err:
         error(f"Correction map for '{label}' has an undefined keycode "
-              f"({key_err}); disabling correction for this layout. raw={raw}")
+                f"({key_err}); disabling correction for this layout. raw={raw}")
         forward = {}
     inverse = {out_key: in_key for in_key, out_key in forward.items()}
     if len(inverse) != len(forward):
         warn(f"Correction map for '{label}' is not one-to-one; output "
-             f"de-correction may be wrong. raw={raw}")
+                f"de-correction may be wrong. raw={raw}")
     _correction_map = forward
     _inverse_map = inverse
     _correction_label = label
-    debug(f"Correction map installed for '{label}': "
-          f"{len(forward)} entries: {forward}")
+    debug(">>>   " * int(80/6), ctx="LC")
+    debug(f"Correction map installed for '{label}' ({len(forward)} entries): \n"
+            f"{_format_correction_map(forward)}", ctx="LC")
+    debug("<<<   " * int(80/6), ctx="LC")
 
 
 def correct_key_for_match(key: Key) -> Key:

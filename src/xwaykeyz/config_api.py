@@ -11,7 +11,6 @@ from pprint import pformat as ppf
 # Removed typing imports (Dict, List) to avoid trouble with Python 3.15+
 # from typing import Dict, List
 
-from .layout_correction import set_correction_map
 from .lib.logger import error, debug, warn, FLUSH
 from .lib.key_context import KeyContext
 from .lib.window_context import WindowContextProviderInterface as WCPI
