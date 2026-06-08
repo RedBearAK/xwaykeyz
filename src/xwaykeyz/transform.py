@@ -1,12 +1,22 @@
-import asyncio
 import time
 import inspect
 
 from evdev import ecodes, InputEvent
 from dataclasses import dataclass
 
-from .config_api import (escape_next_key, escape_next_combo, ignore_key,
-                            get_configuration, _ENVIRON, _REPEATING_KEYS)
+from .config_api import (
+    _ENVIRON,
+    _REPEATING_KEYS,
+    escape_next_key,
+    escape_next_combo,
+    ignore_key,
+    get_configuration,
+)
+from .layout_correction import (
+    correct_key_for_match,
+    decorrect_key_for_output,
+    get_correction_map,
+)
 from .lib import logger
 from .lib.asyncio_utils import get_or_create_event_loop
 from .lib.key_context import KeyContext
@@ -442,19 +452,6 @@ def resuspend_keys(timeout):
     if is_suspended():
         if timeout < _last_suspend_timeout:
             return
-    # TODO: revisit
-    # REF: https://github.com/nolar/looptime/issues/3
-    # if is_suspended():
-    #     loop = asyncio.get_event_loop()
-    #     # log("when", _suspend_timer.when())
-    #     # log("loop time", loop.time())
-    #     until = _suspend_timer.when() - loop.time()
-    #     # log("requesting sleep", timeout)
-    #     # log(until, "until wake")
-
-    #     if timeout < until:
-    #         return
-
     _suspend_timer.cancel()
     debug("resuspending keys")
     suspend_keys(timeout)
@@ -479,7 +476,6 @@ def suspend_keys(timeout):
     states: list[Keystate] = [x for x in _key_states.values() if x.key_is_pressed]
     for s in states:
         s.suspended = True
-    # loop = asyncio.get_event_loop()
     loop = get_or_create_event_loop()
     _last_suspend_timeout = timeout
     _suspend_timer = loop.call_later(timeout, resume_keys)
@@ -928,7 +924,8 @@ def transform_key(key, action: Action, ctx: KeyContext):
         _output.send_key_action(key, action)
         return
 
-    combo = Combo(get_pressed_mods(), key)
+    # combo = Combo(get_pressed_mods(), key)
+    combo = Combo(get_pressed_mods(), correct_key_for_match(key))
 
     if _active_keymaps is escape_next_key:
         debug(f"Escape key: {combo} => {key}")
@@ -1040,6 +1037,24 @@ def auto_sticky(combo, input_combo):
 # ─── COMMAND PROCESSING ───────────────────────────────────────────────────────
 
 
+def _decorrect_output_command(command):
+    """Inverse-correct the key of a matched-remap output so XKB renders the
+    intended symbol on the active layout. A Combo is rebuilt with its key
+    de-corrected (modifiers are never corrected); a bare Key is de-corrected
+    directly. Every other command type — callables, lists, nested Keymaps, the
+    escape/bind/ignore sentinels, None — is returned unchanged, so its identity
+    survives the downstream `is` checks and its inner keys get de-corrected when
+    they recurse back through this same loop.
+
+    Called only when a correction map is installed; the caller gates on that, so
+    there is no internal no-op short-circuit here."""
+    if isinstance(command, Combo):
+        return Combo(command.modifiers, decorrect_key_for_output(command.key))
+    if isinstance(command, Key):
+        return decorrect_key_for_output(command)
+    return command
+
+
 def handle_commands(commands, key, action, ctx, input_combo=None):
     """
     returns: reset_mode (True/False) if this is True, _active_keymaps will be reset
@@ -1062,7 +1077,10 @@ def handle_commands(commands, key, action, ctx, input_combo=None):
 
     with _output.suspend_when_lifting():
         # Execute commands
+        correction_active = bool(get_correction_map())
         for command in commands:
+            if correction_active:
+                command = _decorrect_output_command(command)
             if callable(command):
                 # very likely we're just passing None forwards here but that OK
                 cmd_param_cnt = len(inspect.signature(command).parameters)
