@@ -33,13 +33,22 @@ _inverse_map: 'dict[Key, Key]' = {}
 _correction_label: str = _NO_LABEL
 
 
+# Widest repr() any Key member can produce, computed once at import so the log
+# formatter can left-justify the input key into a fixed column the output side
+# aligns past — stable no matter which keys a map holds. It sizes to the whole
+# enum even though correction maps only ever carry typing-block keys, so the
+# column is wider than any real entry needs.
+_KEY_REPR_WIDTH = max(len(repr(key)) for key in Key)
+
+
 def _format_correction_map(mapping: 'dict[Key, Key]') -> str:
     """Render a correction map as one 'in -> out' entry per line, tab-indented
-    and sorted by keycode, for readable logging of these (rare) install events."""
+    and sorted by keycode, with the input key left-justified to a static column
+    so the output keys align regardless of input-name length."""
     if not mapping:
         return '\t(empty)'
     return '\n'.join(
-        f"\t{in_key!r}  ->  {out_key!r}"
+        f"\t{in_key!r:<{_KEY_REPR_WIDTH}}  ->  {out_key!r}"
         for in_key, out_key in sorted(mapping.items())
     )
 
