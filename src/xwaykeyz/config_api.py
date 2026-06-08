@@ -11,6 +11,7 @@ from pprint import pformat as ppf
 # Removed typing imports (Dict, List) to avoid trouble with Python 3.15+
 # from typing import Dict, List
 
+from .layout_correction import set_correction_map
 from .lib.logger import error, debug, warn, FLUSH
 from .lib.key_context import KeyContext
 from .lib.window_context import WindowContextProviderInterface as WCPI
@@ -47,6 +48,13 @@ TIMEOUT_DEFAULTS = {
 
 # multipurpose timeout
 _TIMEOUTS = TIMEOUT_DEFAULTS
+
+LAYOUT_CORRECTION_DEFAULTS = {
+    'enabled':              False,
+    'correct_number_row':   False,
+}
+
+_LAYOUT_CORRECTION = LAYOUT_CORRECTION_DEFAULTS
 
 _DEVICE_ARGS: 'dict[str, str]' = {
     'only_devices': [],
@@ -240,6 +248,45 @@ def throttle_delays(key_pre_delay_ms=0, key_post_delay_ms=0):
             f'Post-key: {_THROTTLES["key_post_delay_ms"]}ms')
 
 
+def keyboard_layout_correction(
+    enabled: bool               = False,
+    correct_number_row: bool    = False,
+):
+    """
+    Opt in to non-US keyboard layout correction.
+
+    enabled             - master switch. When on, correction applies to
+                          everything it can. Off by default.
+    correct_number_row  - treat a position-flipped number row as corrected
+                          base keys instead of leaving it positional (default).
+                          Only coherent where the row differs by position, not
+                          Shift level.
+
+    What `enabled` turns on, as it is built out:
+        shortcut match + output correction (flat keycode map) ........ phase 1
+        typed-string letter/punct correction (rides inverse map) ..... phase 1
+        typed-string digit + symbol correction (symbol table) ........ phase 2
+        Unicode output correction (symbol table) ..................... phase 2
+        non-Latin handling (mechanism TBD; currently passthrough) .... later
+    """
+    global _LAYOUT_CORRECTION
+    new_options = {
+        'enabled':              enabled,
+        'correct_number_row':   correct_number_row,
+    }
+    for name, val in new_options.items():
+        if val not in (True, False):
+            raise ValueError(f"keyboard_layout_correction() wants True or False for '{name}'.")
+
+    _LAYOUT_CORRECTION = new_options
+    debug(f"Keyboard layout correction: {_LAYOUT_CORRECTION}")
+
+
+def layout_correction_options():
+    """Return a copy of the current keyboard-layout-correction options."""
+    return dict(_LAYOUT_CORRECTION)
+
+
 # Setting this to False now, in favor of the newer, more sophisticated
 # caching of Combo, Key and passthrough events that allows "repeat"
 # events to be "replayed", giving CPU usage for repeating keys in the 
@@ -312,12 +359,14 @@ def reset_configuration():
     global _KEYMAPS
     global _TIMEOUTS
     global _PENDING_HYPER_EXPANSIONS
+    global _LAYOUT_CORRECTION
 
     _MODMAPS = []
     _MULTI_MODMAPS = []
     _KEYMAPS = []
     _TIMEOUTS = TIMEOUT_DEFAULTS
     _PENDING_HYPER_EXPANSIONS = []
+    _LAYOUT_CORRECTION = LAYOUT_CORRECTION_DEFAULTS
 
 
 # how transform hooks into the configuration
