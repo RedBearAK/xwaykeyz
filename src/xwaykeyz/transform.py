@@ -16,6 +16,7 @@ from .layout_correction import (
     correct_key_for_match,
     decorrect_key_for_output,
     get_correction_map,
+    xkb_symbol_for_key,
 )
 from .lib import logger
 from .lib.asyncio_utils import get_or_create_event_loop
@@ -925,7 +926,10 @@ def transform_key(key, action: Action, ctx: KeyContext):
         return
 
     # combo = Combo(get_pressed_mods(), key)
-    combo = Combo(get_pressed_mods(), correct_key_for_match(key))
+    match_key = correct_key_for_match(key)
+    if logger.VERBOSE and match_key is not key:
+        debug(f"Layout correction: combo lookup treats {_annotate(key)} as {match_key!r}", ctx="LC")
+    combo = Combo(get_pressed_mods(), match_key)
 
     if _active_keymaps is escape_next_key:
         debug(f"Escape key: {combo} => {key}")
@@ -1037,6 +1041,14 @@ def auto_sticky(combo, input_combo):
 # ─── COMMAND PROCESSING ───────────────────────────────────────────────────────
 
 
+def _annotate(key):
+    """Append the active-layout symbol to a key's repr for log readability —
+    e.g. "<Key.W: 17> (XKB: 'z')". Bare repr when no symbol is known (US-like
+    layouts, or a key outside the correction set)."""
+    symbol = xkb_symbol_for_key(key)
+    return f"{key!r} (XKB: {symbol!r})" if symbol else repr(key)
+
+
 def _decorrect_output_command(command):
     """Inverse-correct the key of a matched-remap output so XKB renders the
     intended symbol on the active layout. A Combo is rebuilt with its key
@@ -1049,9 +1061,15 @@ def _decorrect_output_command(command):
     Called only when a correction map is installed; the caller gates on that, so
     there is no internal no-op short-circuit here."""
     if isinstance(command, Combo):
-        return Combo(command.modifiers, decorrect_key_for_output(command.key))
+        out_key = decorrect_key_for_output(command.key)
+        if logger.VERBOSE and out_key is not command.key:
+            debug(f"Layout correction (output): {command.key!r} -> {_annotate(out_key)}", ctx="LC")
+        return Combo(command.modifiers, out_key)
     if isinstance(command, Key):
-        return decorrect_key_for_output(command)
+        out_key = decorrect_key_for_output(command)
+        if logger.VERBOSE and out_key is not command:
+            debug(f"Layout correction (output): {command!r} -> {_annotate(out_key)}", ctx="LC")
+        return out_key
     return command
 
 

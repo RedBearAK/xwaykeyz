@@ -9,6 +9,11 @@ plus the inverse map derived from it. The keymapper reads the forward map to
 pre-correct incoming keycodes for combo matching on non-US layouts, and the
 inverse map to de-correct matched output back to the active layout.
 
+Alongside these it can hold a display-only symbol hint map (keycode -> the
+symbol the active layout renders on that physical key) that the keymapper uses
+purely to annotate corrected keycodes in its own logs; it is never consulted
+for matching or output, so the keymapper stays symbol-blind in its logic.
+
 All keycodes here are kernel/evdev codes, matching the Key enum (which mirrors
 the kernel input header). XKB keycodes are offset by +8 from these; that offset
 is the analyzer's concern and is resolved before the map ever reaches this
@@ -20,7 +25,7 @@ installation is an atomic reference rebind (never an in-place mutation), which
 is safe under CPython without a lock.
 """
 
-__version__ = '20260607'
+__version__ = '20260608'
 
 from .lib.logger import debug, warn, error
 from .models.key import Key
@@ -30,6 +35,7 @@ _NO_LABEL = 'Layout name not provided'
 
 _correction_map: 'dict[Key, Key]' = {}
 _inverse_map: 'dict[Key, Key]' = {}
+_symbol_hints: 'dict[Key, str]' = {}
 _correction_label: str = _NO_LABEL
 
 
@@ -53,7 +59,11 @@ def _format_correction_map(mapping: 'dict[Key, Key]') -> str:
     )
 
 
-def set_correction_map(correction_map: 'dict[int, int] | None', label: str = _NO_LABEL):
+def set_correction_map(
+    correction_map: 'dict[int, int] | None',
+    label: str = _NO_LABEL,
+    symbol_hints: 'dict[int, str] | None' = None,
+):
     """
     Install a new keycode correction map (atomic reference rebind).
 
@@ -68,6 +78,14 @@ def set_correction_map(correction_map: 'dict[int, int] | None', label: str = _NO
                         purely so the keymapper can name the active layout in its
                         own logs. Never parsed or acted on; the keymapper does no
                         layout reasoning.
+    symbol_hints      - optional {physical_keycode: active_layout_symbol} map,
+                        supplied alongside the correction map purely so the
+                        keymapper can annotate corrected keycodes with the symbol
+                        the active layout renders (evdev 17 -> 'z' on AZERTY) in
+                        its own logs. Display-only: never used for matching or
+                        output, malformed hints are dropped without disabling
+                        correction, and hints are cleared whenever the correction
+                        map is empty or rejected.
 
     Called from the layout-detection coordinator's callback on the detector's
     watcher thread. A malformed map (a keycode not in the Key enum) is rejected
@@ -76,6 +94,7 @@ def set_correction_map(correction_map: 'dict[int, int] | None', label: str = _NO
     """
     global _correction_map
     global _inverse_map
+    global _symbol_hints
     global _correction_label
     if not label:
         label = _NO_LABEL
@@ -92,8 +111,19 @@ def set_correction_map(correction_map: 'dict[int, int] | None', label: str = _NO
     if len(inverse) != len(forward):
         warn(f"Correction map for '{label}' is not one-to-one; output "
                 f"de-correction may be wrong. raw={raw}")
+    # Symbol hints are display-only: a malformed hint degrades logging, never the
+    # correction, and hints make no sense without an active map.
+    try:
+        hints = {Key(code): symbol for code, symbol in (symbol_hints or {}).items()}
+    except (ValueError, TypeError) as hint_err:
+        warn(f"Symbol hints for '{label}' are malformed ({hint_err}); dropping "
+                f"them. Correction is unaffected. raw={symbol_hints}")
+        hints = {}
+    if not forward:
+        hints = {}
     _correction_map = forward
     _inverse_map = inverse
+    _symbol_hints = hints
     _correction_label = label
     debug(">>>   " * int(80/6), ctx="LC")
     debug(f"Correction map installed for '{label}' ({len(forward)} entries): \n"
@@ -111,6 +141,13 @@ def decorrect_key_for_output(key: Key) -> Key:
     """Inverse: map a US-positional output key to its active-layout Key so a
     matched remap renders the intended symbol. Unchanged when not in the map."""
     return _inverse_map.get(key, key)
+
+
+def xkb_symbol_for_key(key: Key) -> 'str | None':
+    """The symbol the active layout renders on the given physical keycode, for
+    log annotation only. None when unknown — US-like layouts (no hints), or a
+    key outside the correction set. Never used for matching or any logic."""
+    return _symbol_hints.get(key)
 
 
 def get_correction_map() -> 'dict[Key, Key]':

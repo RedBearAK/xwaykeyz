@@ -1,4 +1,5 @@
 import time
+
 from evdev import ecodes
 from evdev.uinput import UInput
 
@@ -9,6 +10,7 @@ from .models.combo import Combo
 from .models.key import Key
 from .models.modifier import Modifier
 from .config_api import _THROTTLES
+from .layout_correction import xkb_symbol_for_key
 
 
 VIRT_DEVICE_PREFIX = "XWayKeyz (virtual)"
@@ -177,7 +179,9 @@ class Output:
 
         mod_name = Modifier.get_modifier_name(key)
         mod_suffix = f" ({mod_name} mod)" if mod_name else ""
-        debug(action, f"{key}{mod_suffix}", time.time(), ctx="OO")
+        symbol = xkb_symbol_for_key(key)
+        sym_suffix = f"  (XKB: {symbol!r})" if symbol else ""
+        debug(action, f"{key}{mod_suffix}{sym_suffix}", time.time(), ctx="OO")
 
         self.__send_sync()
 
