@@ -4,6 +4,7 @@ import inspect
 from evdev import ecodes, InputEvent
 from dataclasses import dataclass
 
+from . import pointer_monitor
 from .config_api import (
     _ENVIRON,
     _REPEATING_KEYS,
@@ -194,7 +195,7 @@ def try_replay_cached_repeat(key: Key, action: Action):
     # Replay based on output type
     if _repeat_cache.output_type == 'passthrough':
         # For passthrough, send the current action (not the cached one)
-        _output.send_key_action(key, action)
+        _output.send_key_action_fast(key, action)
     elif _repeat_cache.output_type == 'combo':
         _output.send_combo(_repeat_cache.output_data)
     elif _repeat_cache.output_type == 'key':
@@ -394,6 +395,7 @@ def resume_keys():
     _suspend_timer.cancel()
     _last_suspend_timeout = 0
     _suspend_timer = None
+    pointer_monitor.unlisten()
 
     # keys = get_suspended_mods()
     states: list[Keystate] = [x for x in _key_states.values() if x.suspended]
@@ -480,6 +482,8 @@ def suspend_keys(timeout):
     loop = get_or_create_event_loop()
     _last_suspend_timeout = timeout
     _suspend_timer = loop.call_later(timeout, resume_keys)
+    pointer_monitor.listen(loop, resume_keys)
+
 
 # ─── DUMP DIAGNOSTICS ────────────────────────────────────────────────────────
 
@@ -625,6 +629,16 @@ def on_event(event: InputEvent, device):
 
     # Early exit for non-key events - they should not touch cache tracking
     if event.type != ecodes.EV_KEY or device is None:
+        # Wheel scroll on a grabbed pointer device signals pointer intent,
+        # same as the pointer monitor does for ungrabbed devices. Guard
+        # ordering matters: is_suspended() is the cheapest test and almost
+        # always False, and this branch runs on every motion event from
+        # every grabbed pointer device.
+        if (is_suspended()
+                and event.type == ecodes.EV_REL
+                and event.code in pointer_monitor.TRIGGER_REL_CODES):
+            debug("resume because of wheel scroll on grabbed device")
+            resume_keys()
         _output.send_event(event)
         return
 
@@ -735,7 +749,10 @@ def on_mod_key(keystate: Keystate, ctx):
             suspend_or_resuspend_keys(_TIMEOUTS["suspend"])
 
     if not hold_output:
-        _output.send_key_action(key, action)
+        if action.is_repeat:
+            _output.send_key_action_fast(key, action)
+        else:
+            _output.send_key_action(key, action)
         # Changing Action.is_released() to use a property decorator, for consistentcy.
         if action.is_released:
             keystate.exerted_on_output = False
@@ -753,7 +770,10 @@ def on_key(keystate: Keystate, ctx):
         mod_name = Modifier.get_modifier_name(key)
         mod_suffix = f" ({mod_name} mod)" if mod_name else ""
         debug("on_key", f"{key}{mod_suffix}", action)
-        _output.send_key_action(key, action)
+        if action.just_pressed and is_suspended():
+            debug("resume because of button press")
+            resume_keys()
+        _output.send_key_action_fast(key, action)
         return
 
     # ⚡ HELD COMBO CHECK — Must fire before cache logic or any other processing.
@@ -880,7 +900,7 @@ def on_key(keystate: Keystate, ctx):
     # Changing Action.is_released() to use a property decorator, for consistentcy.
     elif action.is_released:
         if _output.is_key_pressed(key):
-            _output.send_key_action(key, action)
+            _output.send_key_action_fast(key, action)
         if keystate.is_multi:
             # debug("multi released early", key)
             debug("Multipurpose key released before timeout expired", key)
@@ -922,7 +942,7 @@ def transform_key(key, action: Action, ctx: KeyContext):
     # typed straight thru from input to output
     if ctx.wndw_ctxt_error:
         resume_keys()
-        _output.send_key_action(key, action)
+        _output.send_key_action_fast(key, action)
         return
 
     # combo = Combo(get_pressed_mods(), key)
@@ -933,7 +953,7 @@ def transform_key(key, action: Action, ctx: KeyContext):
 
     if _active_keymaps is escape_next_key:
         debug(f"Escape key: {combo} => {key}")
-        _output.send_key_action(key, action)
+        _output.send_key_action_fast(key, action)
         _active_keymaps = None
         return
 
@@ -945,13 +965,13 @@ def transform_key(key, action: Action, ctx: KeyContext):
         # Ignore modifier keys and releases - wait for next actual keypress
         # Changing Action.is_released() to use a property decorator, for consistentcy.
         if Modifier.is_key_modifier(key) or action.is_released:
-            _output.send_key_action(key, action)
+            _output.send_key_action_fast(key, action)
             return  # Stay in escape mode, don't consume the flag
 
         # This is a non-modifier key press - apply escape and consume flag
         debug(f"Escape combo: {combo} => {combo}")
         resume_keys()  # Ensure current modifiers are on output
-        _output.send_key_action(key, action)
+        _output.send_key_action_fast(key, action)
         _active_keymaps = None  # Consume the flag now
         return
 
