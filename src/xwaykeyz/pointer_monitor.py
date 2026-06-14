@@ -32,7 +32,7 @@ most once per _RESCAN_MIN_INTERVAL seconds, at listen() time, and a
 rescan only runs when the set of device paths actually changed.
 """
 
-__version__ = '20260612'
+__version__ = '20260614'
 
 import time
 
@@ -41,6 +41,9 @@ from evdev import ecodes, InputDevice, list_devices
 from .output import VIRT_DEVICE_PREFIX
 from .lib.logger import debug, error
 
+
+PTR_LOG_PFX = '--> POINTER'
+PTR_DBG_CTX = 'PT'
 
 # Button-range and touch-contact key events that signal pointer intent.
 # A press event (value == 1) of any of these resumes suspended modifiers.
@@ -152,7 +155,7 @@ def _scan_devices():
             device.close()
             continue
         _devices_dct[path] = device
-        debug(f"Pointer monitor: watching '{device.name}' ({path})")
+        debug(f"{PTR_LOG_PFX}: watching '{device.name}' ({path})", ctx=PTR_DBG_CTX)
 
 
 def _drain_device(device: InputDevice):
@@ -181,15 +184,16 @@ def _on_readable(device: InputDevice):
             if event is None:
                 break
             if _event_is_trigger(event):
-                debug(f"Pointer monitor: trigger event (type {event.type}, "
-                        f"code {event.code}) on '{device.name}', resuming suspended keys")
+                debug(f"{PTR_LOG_PFX}: trigger event (type {event.type}, "
+                        f"code {event.code}) on '{device.name}', resuming suspended keys",
+                        ctx=PTR_DBG_CTX)
                 # The resume path calls unlisten(), tearing down all readers.
                 _resume_fn()
                 return
     except BlockingIOError:
         pass
     except OSError:
-        error(f"Pointer monitor: lost device '{device.name}', dropping it")
+        error(f"{PTR_LOG_PFX}: lost device '{device.name}', dropping it")
         _close_device(device.path)
 
 
