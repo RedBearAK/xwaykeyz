@@ -820,6 +820,69 @@ def _generate_hyper_expansion(pending):
     return expansion_dict
 
 
+# ─── LEVEL3-VIA-LEFT-ALT SETUP ─────────────────────────────────
+
+
+_LEVEL3_WHEN_ALWAYS = lambda _: True
+
+# Character-block key names (map directly to Key enum members; see
+# models/key.py). These are the positions that can carry level3/level4
+# glyphs on AltGr layouts. Space and all non-character keys are excluded —
+# no level3 glyph, and/or they belong to motion/editing remaps.
+_LEVEL3_KEY_NAMES = (
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
+    "Minus", "Equal",
+    "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P",
+    "Left_Brace", "Right_Brace",
+    "A", "S", "D", "F", "G", "H", "J", "K", "L",
+    "Semicolon", "Apostrophe", "Grave",
+    "Backslash",
+    "Z", "X", "C", "V", "B", "N", "M",
+    "Comma", "Dot", "Slash",
+)
+
+
+def setup_level3_combos_via_left_alt(when=_LEVEL3_WHEN_ALWAYS):
+    """
+    Route left-Alt character combos to right-Alt, so the left Alt key can
+    reach the level3 (AltGr/Option) and level4 (Shift+AltGr) glyph layers
+    on layouts that place ISO_Level3_Shift on the right-Alt position — the
+    Mac variants, AZERTY, and most non-US layouts.
+
+    Left Alt keeps its real Mod1 identity for bare presses and mouse combos
+    (Alt+click survives); only LAlt + a character key is rewritten, to RAlt
+    + that key, which XKB then resolves to the level3 glyph. The Shift layer
+    (Shift+LAlt -> Shift+RAlt) reaches level4.
+
+    Input modifier is the specific LAlt, so right Alt is never touched.
+    Exact combo matching means any combo also carrying Cmd/Ctrl/Super (e.g.
+    Cmd+Option+X) does not match and passes through unchanged.
+
+    The keymap is registered immediately, so its precedence is simply where
+    this is called in the config — place the call where the character layer
+    should win. 'when' gates the whole generated keymap and is evaluated
+    live per event, so an overlay flag in the condition gives on-the-fly
+    enable/disable.
+    """
+    if not callable(when):
+        raise TypeError(
+            f"setup_level3_combos_via_left_alt: 'when' must be callable, "
+            f"got {type(when).__name__}"
+        )
+
+    level3_dict = {}
+    for key_name in _LEVEL3_KEY_NAMES:
+        level3_dict[combo(f"LAlt-{key_name}")]       = combo(f"RAlt-{key_name}")
+        level3_dict[combo(f"Shift-LAlt-{key_name}")] = combo(f"Shift-RAlt-{key_name}")
+
+    keymap("Level3 combos via Left Alt (auto-gen)", level3_dict, when=when)
+
+    debug(
+        f"setup_level3_combos_via_left_alt: generated {len(level3_dict)} "
+        f"entries over {len(_LEVEL3_KEY_NAMES)} keys"
+    )
+
+
 # ─── WINDOW CONTEXT MATCHING ───────────────────────────────────
 
 
