@@ -15,6 +15,7 @@ from evdev import InputDevice, InputEvent, ecodes
 from evdev.eventio import EventIO
 
 from . import config_api, transform
+from .device_quirks import DeviceQuirk, initialize_device_quirks
 from .devices import DeviceFilter, DeviceGrabError, DeviceRegistry
 from .lib import logger
 from .lib.asyncio_utils import get_or_create_event_loop
@@ -26,6 +27,8 @@ from .transform import boot_config, dump_diagnostics, on_event
 
 
 CONFIG = config_api
+_sup = None
+_active_quirks_lst: 'list[DeviceQuirk]' = []
 
 
 def shutdown():
@@ -84,6 +87,13 @@ def main_loop(arg_devices, device_watch, ignore_devices=None):
 
     boot_config()
 
+    # We will handle device quirks that we cause, if we can.
+    # Canonical example: keymapper blocks function of Fn key on
+    # Touch Bar Mac models, by grabbing internal keyboard and
+    # preventing kernel driver from seeing KEY_FN.
+    global _active_quirks_lst
+    _active_quirks_lst = initialize_device_quirks()
+
     if device_watch:
         inotify = watch_dev_input()
 
@@ -106,7 +116,13 @@ def main_loop(arg_devices, device_watch, ignore_devices=None):
         if device_watch:
             loop.add_reader(inotify.fd, _inotify_handler, registry, inotify)
 
-        _sup = loop.create_task(supervisor())  # noqa: F841
+        global _sup
+        # The old "noqa: F841" comment was to suppress a flake8/Ruff notice about 
+        # the "unused local variable" regarding "_sub", which was local.
+        # This is cured by the global line, so it actually becomes global.
+        # No functional difference overall. The var is only needed to prevent
+        # premature garbage collection of the loop, apparently.
+        _sup = loop.create_task(supervisor())
         loop.add_signal_handler(signal.SIGINT, sig_int)
         loop.add_signal_handler(signal.SIGTERM, sig_term)
         info("Ready to process input.")
@@ -121,7 +137,6 @@ def main_loop(arg_devices, device_watch, ignore_devices=None):
 
 
 _tasks: List[Task] = []
-_sup = None
 
 
 async def supervisor():
@@ -168,6 +183,10 @@ def receive_input(device: EventIO):
                     debug("DIAG: Diagnostics requested.")
                     dump_diagnostics()
                 continue
+
+        if _active_quirks_lst and event.type == ecodes.EV_KEY:
+            for quirk in _active_quirks_lst:
+                quirk.handle_key_event(event.code, event.value, device)
 
         on_event(event, device)
 
