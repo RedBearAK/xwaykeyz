@@ -1025,19 +1025,25 @@ def simple_sticky(combo: Combo, output_combo: Combo):
     inkey = inmods[0].get_key()
     outkey = outmods[0].get_key()
 
-    if inkey in _key_states:
-        keystate = _key_states[inkey]
-        if keystate.exerted_on_output:
-            key_in_output = any([inkey in mod.keys for mod in outmods])
-            if not key_in_output:
-                # we are replacing the input key with the bound outkey, so if
-                # the input key is exerted on the output we should lift it
-                _output.send_key_action(inkey, Action.RELEASE)
-                # it's release later will still need to result in us lifting
-                # the sticky out key from output, but that is currently handled
-                # by `_sticky` in `on_key`
-                # TODO: this state info should likely move into `KeyState`
-                keystate.exerted_on_output = False
+    # _key_states is keyed on the physical inkey (pre-modmap), but `inkey` here is
+    # an output-side modifier identity (post-modmap) — e.g. a multipurpose key that
+    # resolved to RIGHT_CTRL, whose keystate is still filed under its physical key.
+    # Match on keystate.key, not the dict key, same as teardown_held_combo() does.
+    keystate = next(
+        (ks for ks in _key_states.values() if ks.key == inkey),
+        None
+    )
+
+    if keystate is not None and keystate.exerted_on_output:
+        key_in_output = any([inkey in mod.keys for mod in outmods])
+        if not key_in_output:
+            # we are replacing the input key with the bound outkey, so if
+            # the input key is exerted on the output we should lift it
+            _output.send_key_action(inkey, Action.RELEASE)
+            # its release later will still need to result in us lifting
+            # the sticky out key from output, but that is currently handled
+            # by `_sticky` in `on_key`
+            keystate.exerted_on_output = False
 
     stuck = {inkey: outkey}
     debug("BIND:", stuck)
