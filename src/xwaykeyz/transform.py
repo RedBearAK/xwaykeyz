@@ -24,7 +24,7 @@ from .lib.asyncio_utils import get_or_create_event_loop
 from .lib.key_context import KeyContext
 from .lib.logger import debug
 from .models.action import Action
-from .models.combo import Combo, ComboHint
+from .models.combo import Combo, ComboHint, PreCorrectedCombo
 from .models.trigger import Trigger
 from .models.key import Key
 from .models.keymap import Keymap
@@ -1084,8 +1084,16 @@ def _decorrect_output_command(command):
     survives the downstream `is` checks and its inner keys get de-corrected when
     they recurse back through this same loop.
 
+    A PreCorrectedCombo is returned untouched: it carries keystrokes the string
+    emitter already built against the active layout (via the symbol table), so
+    de-correcting it would double-apply correction. The check precedes the Combo
+    branch because PreCorrectedCombo is a Combo subclass and would otherwise be
+    caught and rewritten by it.
+
     Called only when a correction map is installed; the caller gates on that, so
     there is no internal no-op short-circuit here."""
+    if isinstance(command, PreCorrectedCombo):
+        return command
     if isinstance(command, Combo):
         out_key = decorrect_key_for_output(command.key)
         if logger.VERBOSE and out_key is not command.key:
@@ -1201,3 +1209,6 @@ def handle_commands(commands, key, action, ctx, input_combo=None):
             _next_bind = False
         # Reset keymap in ordinary flow
         return True
+
+
+# End of File #
