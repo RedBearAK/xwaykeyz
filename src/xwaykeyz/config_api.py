@@ -592,7 +592,7 @@ class UnicodeNumberToolarge(Exception):
     pass
 
 
-def _fold_to_ascii(s: str) -> str:
+def _fold_to_ascii(string_to_fold: str) -> str:
     """Transliterate a string to its closest plain-ASCII form for the 'fold'
     miss policy. Prefers anyascii (broad, sensible transliterations like 'EUR'
     for the euro sign); falls back to a stdlib NFD decomposition that strips
@@ -602,8 +602,8 @@ def _fold_to_ascii(s: str) -> str:
     guarantee of reachability — whatever still misses after folding is handled by
     folded_miss_policy at the call site."""
     if _HAVE_ANYASCII:
-        return _anyascii_fn(s)
-    decomposed = unicodedata.normalize('NFD', s)
+        return _anyascii_fn(string_to_fold)
+    decomposed = unicodedata.normalize('NFD', string_to_fold)
     return ''.join(decomposed_char for decomposed_char in decomposed
                     if not unicodedata.combining(decomposed_char))
 
@@ -643,40 +643,7 @@ def _placeholder_combos(placeholder_str: str) -> 'list | None':
     return combos
 
 
-# def to_US_keystrokes(s: str):
-#     """
-#     Turn alphanumeric string (with spaces and some ASCII) up to length 
-#     of 100 characters into keystroke commands
-
-#     Warn: Almost certainly not going to work with non-US keymaps.
-#     """
-#     if len(s) > 100:
-#         raise TypingTooLong("`to_keystrokes` only supports strings of 100 characters or less")
-#     def _to_keystrokes(ctx: KeyContext):
-#         combo_list = []
-#         for c in s:
-#             if ord(c) > 127:
-#                 combo_list.append(unicode_keystrokes(ord(c)))
-#             elif c.isupper():
-#                 if ctx.capslock_on: combo_list.append(combo(c))
-#                 else: combo_list.append(combo("Shift-" + c))
-#             elif (str.isdigit(c)):
-#                 combo_list.append(Key[c.upper()])
-#             elif (str.isalpha(c)):
-#                 if ctx.capslock_on: combo_list.append(combo("Shift-" + c))
-#                 else: combo_list.append(Key[c.upper()])
-#             elif c in ASCII_TO_KEY:
-#                 combo_list.append(ASCII_TO_KEY[c])
-#             elif c in ASCII_WITH_SHIFT:
-#                 combo_list.append(ASCII_WITH_SHIFT[c])
-#             else:
-#                 raise CharacterNotSupported(f"The character {c} is not supported by `to_keystrokes` yet.")
-#         return combo_list
-
-#     return _to_keystrokes
-
-
-def to_US_keystrokes(string_to_process: str):
+def str_to_keystrokes(string_to_process: str):
     """
     Turn an alphanumeric string (with spaces and some ASCII), up to 100
     characters, into keystroke commands.
@@ -690,9 +657,9 @@ def to_US_keystrokes(string_to_process: str):
     (see keyboard_layout_correction()).
     """
     if len(string_to_process) > 100:
-        raise TypingTooLong("`to_keystrokes` only supports strings of 100 characters or less")
+        raise TypingTooLong("`str_to_keystrokes` only supports strings of 100 characters or less")
 
-    def _to_keystrokes(ctx: KeyContext):
+    def _str_to_keystrokes(ctx: KeyContext):
         symbol_table = get_symbol_table()
 
         # ── US-like layout: empty table. Run the original US-positional path
@@ -702,7 +669,7 @@ def to_US_keystrokes(string_to_process: str):
             combo_list = []
             for character in string_to_process:
                 if ord(character) > 127:
-                    combo_list.append(unicode_keystrokes(ord(character)))
+                    combo_list.append(unicode_addr_to_keystrokes(ord(character)))
                 elif character.isupper():
                     if ctx.capslock_on: combo_list.append(combo(character))
                     else: combo_list.append(combo("Shift-" + character))
@@ -717,7 +684,7 @@ def to_US_keystrokes(string_to_process: str):
                     combo_list.append(ASCII_WITH_SHIFT[character])
                 else:
                     raise CharacterNotSupported(
-                        f"The character {character} is not supported by `to_keystrokes` yet.")
+                        f"The character {character} is not supported by `str_to_keystrokes` yet.")
             return combo_list
 
         # ── Non-US layout: a symbol table is installed. Look every character up
@@ -737,6 +704,10 @@ def to_US_keystrokes(string_to_process: str):
         if primary_policy == 'fold':
             chars           = _fold_to_ascii(string_to_process)
             effective_miss  = folding_policy
+            if chars != string_to_process:
+                debug(
+                    f"str_to_keystrokes: fold policy altered {string_to_process!r} "
+                    f"-> {chars!r} for the active layout.", ctx="LC")
         else:
             chars           = string_to_process
             effective_miss  = primary_policy
@@ -749,7 +720,7 @@ def to_US_keystrokes(string_to_process: str):
             # so they continue to raise exactly as before.
             if target_char in ('\t', '\n'):
                 raise CharacterNotSupported(
-                    f"The character {target_char!r} is not supported by `to_keystrokes` yet.")
+                    f"The character {target_char!r} is not supported by `str_to_keystrokes` yet.")
 
             steps = keystrokes_for_symbol(target_char)
             if steps is not None:
@@ -763,7 +734,7 @@ def to_US_keystrokes(string_to_process: str):
                     # Placeholder itself is unreachable on this layout — a config
                     # error the user must fix. Refuse the whole string, loudly.
                     error(
-                        f"to_keystrokes: symbol_placeholder {placeholder_str!r} is not "
+                        f"str_to_keystrokes: symbol_placeholder {placeholder_str!r} is not "
                         f"typeable on the active layout; refusing the whole string "
                         f"{string_to_process!r}.", ctx="LC")
                     return []
@@ -773,14 +744,14 @@ def to_US_keystrokes(string_to_process: str):
             # effective_miss == 'refuse': abandon the whole string, name the
             # offending character in the journal.
             error(
-                f"to_keystrokes: character {target_char!r} is not typeable on the active "
+                f"str_to_keystrokes: character {target_char!r} is not typeable on the active "
                 f"layout (policy {effective_miss!r}); refusing the whole string {string_to_process!r}.",
                 ctx="LC")
             return []
 
         # CapsLock, if on, would alter the letter case the baked-in modifiers
         # produce. Bracket the whole sequence with CapsLock toggles (same tactic
-        # as unicode_keystrokes), which is content-agnostic and leaves the
+        # as unicode_addr_to_keystrokes), which is content-agnostic and leaves the
         # table's own modifiers untouched — correct across letters, digits, and
         # punctuation alike. Only meaningful when something was actually emitted.
         if combo_list and ctx.capslock_on:
@@ -789,7 +760,7 @@ def to_US_keystrokes(string_to_process: str):
 
         return combo_list
 
-    return _to_keystrokes
+    return _str_to_keystrokes
 
 
 def _digits(n, base):
@@ -808,37 +779,91 @@ def insert_delay(msec):
     return _insert_delay
 
 
-def unicode_keystrokes(n):
-    """Turn Unicode number into keystroke commands"""
-    if n > 0x10ffff:
-        raise UnicodeNumberToolarge(f"{hex(n)} too large for Unicode keyboard entry.")
-    def _unicode_keystrokes(ctx: KeyContext):
-        msec_delay = (_THROTTLES["key_pre_delay_ms"] + _THROTTLES["key_post_delay_ms"]) / 2
+def unicode_addr_to_keystrokes(codepoint_int):
+    """Turn a single Unicode address (codepoint integer) into keystroke commands
+    via the Shift+Ctrl+U entry mechanism. Takes the integer codepoint (e.g.
+    0x20AC for the euro sign), not a character — see unicode_str_to_keystrokes
+    for a string-accepting companion.
+
+    Every key emitted here is a literal Unicode-entry keystroke (the compose
+    trigger, the hex digits, Enter), NOT layout-dependent text: the hex 'A' means
+    hex A on every layout. So each is emitted as a PreCorrectedCombo, immune to
+    output de-correction. Without that immunity, on a layout with a correction map
+    (e.g. AZERTY) the hex digits get rewritten through the inverse map, fcitx/ibus
+    receives a corrupted codepoint, and the wrong glyph (or garbage) is composed.
+    A no-modifier PreCorrectedCombo sends identically to a bare Key (send_key
+    itself is just send_combo(Combo(None, key))), so this changes immunity only,
+    not timing or behaviour."""
+    if codepoint_int > 0x10ffff:
+        raise UnicodeNumberToolarge(f"{hex(codepoint_int)} too large for Unicode keyboard entry.")
+
+    # The compose trigger Shift+Ctrl+U, built as a PreCorrectedCombo so its key
+    # (U, which some layouts swap) is not de-corrected. Modifiers are never
+    # de-corrected, but the key is, so the marker is what protects the 'u'.
+    compose_modifiers = [Modifier.from_key(Key.LEFT_CTRL), Modifier.from_key(Key.LEFT_SHIFT)]
+
+    def _unicode_addr_to_keystrokes(ctx: KeyContext):
         combo_list = [
-            # insert_delay(msec_delay),     # using this will break api helper tests
-            combo("Shift-Ctrl-u"),  # requires "ibus" or "fctix" as input manager?
-            # insert_delay(msec_delay),     # using this will break api helper tests
-            *[Key[hexdigit]
-                for digit in _digits(n, 16)
+            PreCorrectedCombo(compose_modifiers, Key.U),    # Shift+Ctrl+U trigger
+            *[PreCorrectedCombo([], Key[hexdigit])
+                for digit in _digits(codepoint_int, 16)
                 for hexdigit in hex(digit)[2:].upper()
             ],
-            # # Same list as above, but with delays between all digits. Unnecessary?
-            # *[
-            #     key_cmd
-            #     for digit in _digits(n, 16)
-            #     for hexdigit in hex(digit)[2:].upper()
-            #     for key_cmd in (Key[hexdigit], insert_delay(msec_delay))
-            # ],
-            # insert_delay(msec_delay),     # using this will break api helper tests
-            Key.ENTER,
-            # insert_delay(msec_delay),     # using this will break api helper tests
+            PreCorrectedCombo([], Key.ENTER),
         ]
         if ctx.capslock_on:
-            combo_list.insert(0, Key.CAPSLOCK)
-            combo_list.append(Key.CAPSLOCK)
+            combo_list.insert(0, PreCorrectedCombo([], Key.CAPSLOCK))
+            combo_list.append(PreCorrectedCombo([], Key.CAPSLOCK))
         return combo_list
 
-    return _unicode_keystrokes
+    return _unicode_addr_to_keystrokes
+
+
+def unicode_str_to_keystrokes(string_to_process: str):
+    """
+    Turn a string into keystroke commands by routing EVERY character through
+    Unicode entry (Shift+Ctrl+U + codepoint hex). Layout-independent, but slow
+    and dependent on a working IBus/fcitx Unicode entry path. Prefer
+    str_to_keystrokes (or a literal key) for ASCII and reserve this for
+    genuinely non-typeable characters.
+    """
+    if len(string_to_process) > 100:
+        raise TypingTooLong(
+            "`unicode_str_to_keystrokes` only supports strings of 100 characters or less")
+
+    # Warn once per ASCII character at build time: this is a property of how the
+    # macro was written, not a per-execution event, so it belongs here (when the
+    # processor is evaluated as the config builds) rather than inside the inner
+    # function (which would re-warn on every trigger).
+    for target_char in string_to_process:
+        if ord(target_char) <= 127:
+            debug(
+                f"unicode_str_to_keystrokes: ASCII character {target_char!r} routed "
+                f"through Unicode entry (Shift+Ctrl+U). This path is for characters the "
+                f"active layout cannot type; prefer str_to_keystrokes or a literal key "
+                f"for ASCII.", ctx="LC")
+
+    def _unicode_str_to_keystrokes(ctx: KeyContext):
+        combo_list = []
+        for target_char in string_to_process:
+            combo_list.append(unicode_addr_to_keystrokes(ord(target_char)))
+        return combo_list
+
+    return _unicode_str_to_keystrokes
+
+
+def to_US_keystrokes(string_to_process: str):
+    """Deprecated name for str_to_keystrokes(). Delegates unchanged."""
+    warn("to_US_keystrokes() is deprecated and may be removed any time after "
+            "mid-2027; use str_to_keystrokes() instead.")
+    return str_to_keystrokes(string_to_process)
+
+
+def unicode_keystrokes(codepoint_int):
+    """Deprecated name for unicode_addr_to_keystrokes(). Delegates unchanged."""
+    warn("unicode_keystrokes() is deprecated and may be removed any time after "
+            "mid-2027; use unicode_addr_to_keystrokes() instead.")
+    return unicode_addr_to_keystrokes(codepoint_int)
 
 
 def combo(exp):  # pylint: disable=invalid-name
