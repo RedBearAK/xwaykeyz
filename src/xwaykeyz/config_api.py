@@ -782,35 +782,83 @@ def insert_delay(msec):
 def unicode_addr_to_keystrokes(codepoint_int):
     """Turn a single Unicode address (codepoint integer) into keystroke commands
     via the Shift+Ctrl+U entry mechanism. Takes the integer codepoint (e.g.
-    0x20AC for the euro sign), not a character — see unicode_str_to_keystrokes
-    for a string-accepting companion.
+    0x20AC for the euro sign), not a character.
 
     Every key emitted here is a literal Unicode-entry keystroke (the compose
-    trigger, the hex digits, Enter), NOT layout-dependent text: the hex 'A' means
-    hex A on every layout. So each is emitted as a PreCorrectedCombo, immune to
-    output de-correction. Without that immunity, on a layout with a correction map
-    (e.g. AZERTY) the hex digits get rewritten through the inverse map, fcitx/ibus
-    receives a corrupted codepoint, and the wrong glyph (or garbage) is composed.
-    A no-modifier PreCorrectedCombo sends identically to a bare Key (send_key
-    itself is just send_combo(Combo(None, key))), so this changes immunity only,
-    not timing or behaviour."""
+    trigger, the hex digits, Enter). Each hex character is typed via the active
+    layout's correct physical key (symbol-table lookup) and emitted as a
+    PreCorrectedCombo, immune to output de-correction. On a layout with a
+    correction map installed (e.g. AZERTY), a bare Key would be de-corrected to
+    the wrong physical key and the codepoint would corrupt; PreCorrectedCombo
+    keeps the already-correct key intact.
+    """
     if codepoint_int > 0x10ffff:
-        raise UnicodeNumberToolarge(f"{hex(codepoint_int)} too large for Unicode keyboard entry.")
-
-    # The compose trigger Shift+Ctrl+U, built as a PreCorrectedCombo so its key
-    # (U, which some layouts swap) is not de-corrected. Modifiers are never
-    # de-corrected, but the key is, so the marker is what protects the 'u'.
-    compose_modifiers = [Modifier.from_key(Key.LEFT_CTRL), Modifier.from_key(Key.LEFT_SHIFT)]
+        raise UnicodeNumberToolarge(
+            f"{hex(codepoint_int)} too large for Unicode keyboard entry.")
 
     def _unicode_addr_to_keystrokes(ctx: KeyContext):
-        combo_list = [
-            PreCorrectedCombo(compose_modifiers, Key.U),    # Shift+Ctrl+U trigger
-            *[PreCorrectedCombo([], Key[hexdigit])
-                for digit in _digits(codepoint_int, 16)
-                for hexdigit in hex(digit)[2:].upper()
-            ],
-            PreCorrectedCombo([], Key.ENTER),
+        symbol_table = get_symbol_table()
+
+        # ── US-like layout: empty table. Original US-positional path, verbatim,
+        # so this common case is byte-for-byte unchanged and free of any table
+        # overhead. ──
+        if not symbol_table:
+            combo_list = [
+                combo("Shift-Ctrl-u"),
+                *[Key[hexdigit]
+                    for digit in _digits(codepoint_int, 16)
+                    for hexdigit in hex(digit)[2:].upper()
+                ],
+                Key.ENTER,
+            ]
+            if ctx.capslock_on:
+                combo_list.insert(0, Key.CAPSLOCK)
+                combo_list.append(Key.CAPSLOCK)
+            return combo_list
+
+        # ── Non-US layout: a symbol table is installed. Look every hex character
+        # up so it is typed via the active layout's correct physical key, and emit
+        # each as PreCorrectedCombo so the de-correction pass leaves it alone. ──
+
+        # Compose trigger: look up lowercase 'u', then force exactly Ctrl+Shift as
+        # the modifiers (ignore any the table associates with 'u' — the trigger is
+        # definitionally Ctrl+Shift+U, not Ctrl+Shift+whatever-u-needs).
+        u_steps = keystrokes_for_symbol('u')
+        if u_steps is None or len(u_steps) != 1:
+            error(
+                "unicode_addr_to_keystrokes: 'u' is not directly typeable on the "
+                "active layout (needed for the Shift+Ctrl+U trigger); refusing "
+                f"Unicode entry of {hex(codepoint_int)}.", ctx="LC")
+            return []
+        u_key, _u_mods_ignored = u_steps[0]
+        compose_modifiers = [
+            Modifier.from_key(Key.LEFT_CTRL),
+            Modifier.from_key(Key.LEFT_SHIFT),
         ]
+        combo_list = [PreCorrectedCombo(compose_modifiers, u_key)]
+
+        # Hex digits: each typed through the table, single-step only.
+        for digit in _digits(codepoint_int, 16):
+            for hexdigit in hex(digit)[2:].upper():
+                hex_steps = keystrokes_for_symbol(hexdigit)
+                if hex_steps is None or len(hex_steps) != 1:
+                    error(
+                        f"unicode_addr_to_keystrokes: hex digit {hexdigit!r} is not "
+                        "directly typeable on the active layout; refusing Unicode "
+                        f"entry of {hex(codepoint_int)}.", ctx="LC")
+                    return []
+                hex_key, hex_mods = hex_steps[0]
+                modifiers = [
+                    Modifier.from_key(modifier_keycode)
+                    for modifier_keycode in hex_mods
+                ]
+                combo_list.append(PreCorrectedCombo(modifiers, hex_key))
+
+        # Enter terminates the compose sequence: a control key, not a character,
+        # so it is emitted marked-and-direct (no table lookup — it is not in the
+        # table, and a lookup would spuriously refuse on its absence).
+        combo_list.append(PreCorrectedCombo([], Key.ENTER))
+
         if ctx.capslock_on:
             combo_list.insert(0, PreCorrectedCombo([], Key.CAPSLOCK))
             combo_list.append(PreCorrectedCombo([], Key.CAPSLOCK))
