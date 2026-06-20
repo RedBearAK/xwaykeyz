@@ -24,7 +24,7 @@ from .lib.asyncio_utils import get_or_create_event_loop
 from .lib.key_context import KeyContext
 from .lib.logger import debug
 from .models.action import Action
-from .models.combo import Combo, ComboHint
+from .models.combo import Combo, ComboHint, PreCorrectedCombo
 from .models.trigger import Trigger
 from .models.key import Key
 from .models.keymap import Keymap
@@ -704,6 +704,60 @@ def on_event(event: InputEvent, device):
     on_key(keystate, ctx)
 
 
+# def on_mod_key(keystate: Keystate, ctx):
+#     global _modifiers_changed_since_cache
+#     hold_output = False
+#     should_suspend = False
+
+#     key, action = (keystate.key, keystate.action)
+
+#     # Set flag when modifier state changes
+#     if action.is_pressed or action.is_released:
+#         _modifiers_changed_since_cache = True
+#         if logger.VERBOSE:
+#             debug(f"Modifier state changed: {key} {action}")
+
+#     # Changing is_pressed to use a property decorator, for consistentcy.
+#     if action.is_pressed:
+#         if none_pressed():
+#             should_suspend = True
+
+#     # Changing Action.is_released() to use a property decorator, for consistentcy.
+#     elif action.is_released:
+#         if is_sticky(key):
+#             outkey = _sticky[key]
+#             debug(f"lift of BIND {key} => {outkey}")
+#             _output.send_key_action(outkey, Action.RELEASE)
+#             del _sticky[key]
+#             hold_output = not keystate.exerted_on_output
+#         elif keystate.spent:
+#             # if we are being released (after spent) before we can be resumed
+#             # then our press (as far as output is concerned) should be silent
+#             debug("silent lift of spent mod", key)
+#             hold_output = not keystate.exerted_on_output
+#         else:
+#             debug("resume because of mod release")
+#             resume_keys()
+
+#     update_pressed_states(keystate)
+
+#     if should_suspend or is_suspended():
+#         keystate.suspended = True
+#         hold_output = True
+#         # Changed just_pressed to use property decorator, for consistency.
+#         if action.just_pressed:
+#             suspend_or_resuspend_keys(_TIMEOUTS["suspend"])
+
+#     if not hold_output:
+#         if action.is_repeat:
+#             _output.send_key_action_fast(key, action)
+#         else:
+#             _output.send_key_action(key, action)
+#         # Changing Action.is_released() to use a property decorator, for consistentcy.
+#         if action.is_released:
+#             keystate.exerted_on_output = False
+
+
 def on_mod_key(keystate: Keystate, ctx):
     global _modifiers_changed_since_cache
     hold_output = False
@@ -717,9 +771,43 @@ def on_mod_key(keystate: Keystate, ctx):
         if logger.VERBOSE:
             debug(f"Modifier state changed: {key} {action}")
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # MULTIPURPOSE-KEY HANDLING IN THE MODIFIER PATH
+    #
+    # A multipurpose key whose *tap* identity is itself a modifier (a piercing
+    # Super-tap, e.g. tap = LEFT_META / hold = RIGHT_CTRL) is dispatched to this
+    # function by on_key, because on_key checks `is_key_modifier(key)` BEFORE the
+    # is_multi branch and the tap identity satisfies it. Such keys therefore never
+    # reach the multipurpose suspend/resolve branches in on_key, and on_mod_key
+    # must carry the multipurpose semantics itself:
+    #
+    #   1. (press) Force suspension for any multi-key, not just the first key in a
+    #      chord, so each multi-key gets its own tap-vs-hold resolve cycle.
+    #   2. (press) Arm the multipurpose timeout, not the suspend timeout, so the
+    #      window has a real duration to distinguish a quick tap from a held mod.
+    #   3. (release) Resolve tap-vs-hold here, before resume, mirroring the
+    #      multi-key release branch in on_key.
+    #
+    # The root cause is that the dispatch in on_key keys off "is this a modifier"
+    # rather than "is this a multipurpose tap identity" — information that does not
+    # currently exist at the dispatch point. The cleaner long-term fix is to make
+    # that provenance explicit at dispatch and route all multi-keys to a single set
+    # of branches regardless of tap identity; until then, the tap-vs-hold release
+    # decision below is intentionally kept in sync with on_key's `is_multi`
+    # release branch (resolve_as_modifier / resolve_as_momentary on the
+    # other_key_pressed_while_held flag).
+    # ──────────────────────────────────────────────────────────────────────────
+
     # Changing is_pressed to use a property decorator, for consistentcy.
     if action.is_pressed:
         if none_pressed():
+            should_suspend = True
+
+        # (1) Multi-keys must suspend regardless of chord position. The
+        # none_pressed() gate above only catches the first key down; without this,
+        # a second piercing key arriving mid-chord skips suspension entirely and
+        # leaks its tap (Super) identity onto the output.
+        if keystate.is_multi:
             should_suspend = True
 
     # Changing Action.is_released() to use a property decorator, for consistentcy.
@@ -735,6 +823,28 @@ def on_mod_key(keystate: Keystate, ctx):
             # then our press (as far as output is concerned) should be silent
             debug("silent lift of spent mod", key)
             hold_output = not keystate.exerted_on_output
+
+        # (3) Multipurpose release resolution. Resolve the identity BEFORE
+        # resume_keys() so the press and the release agree on which key is
+        # emitted. If we let resume_keys() decide via its timeout-fallback, it
+        # always picks the hold identity, producing a hold-identity press paired
+        # with a tap-identity release on a quick tap — a stuck-modifier hazard.
+        # The fall-through at the bottom of this function emits the release of the
+        # now-resolved identity (no transform_key call needed, unlike on_key).
+        elif keystate.is_multi:
+            debug("Multipurpose key (mod-tap) released before timeout expired", key)
+            if keystate.other_key_pressed_while_held:
+                # Used in a chord → resolve as the hold modifier.
+                mod_name = Modifier.get_modifier_name(keystate.multikey)
+                mod_suffix = f" ({mod_name} mod)" if mod_name else ""
+                debug(f"Resolved multi-key {keystate.inkey.name} as {keystate.multikey.name}{mod_suffix} (hold)")
+                keystate.resolve_as_modifier()
+            else:
+                # Quick lone release, nothing else pressed → resolve as the tap.
+                debug(f"Resolved multi-key {keystate.inkey.name} as {keystate.key.name} (tap)")
+                keystate.resolve_as_momentary()
+            resume_keys()
+
         else:
             debug("resume because of mod release")
             resume_keys()
@@ -746,7 +856,16 @@ def on_mod_key(keystate: Keystate, ctx):
         hold_output = True
         # Changed just_pressed to use property decorator, for consistency.
         if action.just_pressed:
-            suspend_or_resuspend_keys(_TIMEOUTS["suspend"])
+            # (2) Select the multipurpose timeout for multi-keys so the suspend
+            # window has a real duration (normally ~1s). The suspend timeout is
+            # often 0, which collapses the window to a single loop tick and makes
+            # the timer-fallback resolve every key as a hold before its release
+            # can arrive. Ordinary modifiers keep the suspend timeout unchanged.
+            if keystate.is_multi:
+                suspend_timeout = _TIMEOUTS["multipurpose"]
+            else:
+                suspend_timeout = _TIMEOUTS["suspend"]
+            suspend_or_resuspend_keys(suspend_timeout)
 
     if not hold_output:
         if action.is_repeat:
@@ -1084,8 +1203,16 @@ def _decorrect_output_command(command):
     survives the downstream `is` checks and its inner keys get de-corrected when
     they recurse back through this same loop.
 
+    A PreCorrectedCombo is returned untouched: it carries keystrokes the string
+    emitter already built against the active layout (via the symbol table), so
+    de-correcting it would double-apply correction. The check precedes the Combo
+    branch because PreCorrectedCombo is a Combo subclass and would otherwise be
+    caught and rewritten by it.
+
     Called only when a correction map is installed; the caller gates on that, so
     there is no internal no-op short-circuit here."""
+    if isinstance(command, PreCorrectedCombo):
+        return command
     if isinstance(command, Combo):
         out_key = decorrect_key_for_output(command.key)
         if logger.VERBOSE and out_key is not command.key:
@@ -1201,3 +1328,6 @@ def handle_commands(commands, key, action, ctx, input_combo=None):
             _next_bind = False
         # Reset keymap in ordinary flow
         return True
+
+
+# End of File #

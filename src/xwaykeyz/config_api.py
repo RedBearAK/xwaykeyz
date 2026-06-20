@@ -1,9 +1,17 @@
-import itertools
+import os
 import re
 import sys
 import time
-import os
 import inspect
+import itertools
+import unicodedata
+
+try:
+    from anyascii import anyascii as _anyascii_fn
+    _HAVE_ANYASCII = True
+except ImportError:
+    _anyascii_fn = None
+    _HAVE_ANYASCII = False
 
 from inspect import signature
 from pprint import pformat as ppf
@@ -11,16 +19,18 @@ from pprint import pformat as ppf
 # Removed typing imports (Dict, List) to avoid trouble with Python 3.15+
 # from typing import Dict, List
 
+from .layout_correction import get_symbol_table, keystrokes_for_symbol
 from .lib.logger import error, debug, warn, FLUSH
 from .lib.key_context import KeyContext
 from .lib.window_context import WindowContextProviderInterface as WCPI
 from .models.action import Action
-from .models.combo import Combo, ComboHint
+from .models.combo import Combo, ComboHint, PreCorrectedCombo
 from .models.trigger import Trigger
 from .models.key import Key, ASCII_TO_KEY
 from .models.keymap import Keymap
 from .models.modifier import Modifier
 from .models.modmap import Modmap, MultiModmap
+
 
 # GLOBALS
 bind                            = ComboHint.BIND
@@ -30,6 +40,7 @@ escape_next_combo               = ComboHint.ESCAPE_NEXT_COMBO
 
 immediately                     = Trigger.IMMEDIATELY
 
+
 # keycode translation
 # e.g., { Key.CAPSLOCK: Key.LEFT_CTRL }
 _MODMAPS: 'list[Modmap]' = []
@@ -37,6 +48,7 @@ _MODMAPS: 'list[Modmap]' = []
 # multipurpose keys
 # e.g, {Key.LEFT_CTRL: [Key.ESC, Key.LEFT_CTRL, Action.RELEASE]}
 _MULTI_MODMAPS: 'list[MultiModmap]' = []
+
 
 TIMEOUT_DEFAULTS = {
     "multipurpose": 1.0,
@@ -48,18 +60,50 @@ TIMEOUT_DEFAULTS = {
 # multipurpose timeout
 _TIMEOUTS = TIMEOUT_DEFAULTS
 
+
 LAYOUT_CORRECTION_DEFAULTS = {
-    'enabled':              False,
-    'correct_number_row':   False,
+
+    # Layout correction off by default for now, since it manipulates output.
+    # User can activate from config file by calling the API function.
+    'correction_enabled':       False,
+
+    # Some layouts like French AZERTY have the number row flipped (digits on the
+    # Shift layer). Leaving the number row uncorrected maintains number-shortcut
+    # behavior consistency.
+    'correct_number_row':       False,
+
+    # What the keymapper does when a symbol cannot be reached via keystrokes on
+    # the active layout. Valid options:
+    #   'refuse'      - no output, show error
+    #   'fold'        - replace with closest ASCII equivalent
+    #   'placeholder' - replace with symbol_placeholder (see below)
+    'symbol_miss_policy':       'refuse',
+
+    # What the keymapper does when symbol_miss_policy is 'fold' and the folded
+    # symbol STILL cannot be reached on the active layout. Valid options:
+    #   'refuse'      - no output, show error
+    #   'placeholder' - replace with symbol_placeholder (see below)
+    # The API accepts None here meaning "unset"; it resolves to 'refuse'. A
+    # non-default value passed while symbol_miss_policy is not 'fold' is ignored
+    # (with a debug note), since it has nothing to fall back from.
+    'folding_miss_policy':      'refuse',
+
+    # The character or string substituted when 'placeholder' is the active
+    # symbol miss policy or folding miss policy (see above). An empty string
+    # drops the missing character silently. Ignored under non-placeholder paths.
+    'symbol_placeholder':       '?',
+
 }
 
 _LAYOUT_CORRECTION = LAYOUT_CORRECTION_DEFAULTS
+
 
 _DEVICE_ARGS: 'dict[str, str]' = {
     'only_devices': [],
     'add_devices': [],
     'ignore_devices': [],
 }
+
 
 # Defaults are set here so that X11/Xorg environments keep 
 # working without needing to use API in config file.
@@ -238,6 +282,7 @@ def clamp(num, min_value, max_value):
 
 
 def throttle_delays(key_pre_delay_ms=0, key_post_delay_ms=0):
+    """Mitigate out-of-order key event issues with some macro output, esp. with ibus"""
     ms_min, ms_max = 0.0, 150.0
     if any([not(ms_min <= e <= ms_max) for e in [key_pre_delay_ms, key_post_delay_ms]]):
         error(f'Throttle delay value out of range. Clamping to valid range: {ms_min} to {ms_max}.')
@@ -247,21 +292,68 @@ def throttle_delays(key_pre_delay_ms=0, key_post_delay_ms=0):
             f'Post-key: {_THROTTLES["key_post_delay_ms"]}ms')
 
 
+_SYMBOL_MISS_POLICIES           = ('refuse', 'fold', 'placeholder')
+_FOLDING_MISS_POLICIES          = ('refuse', 'placeholder')
+_SYMBOL_PLACEHOLDER_MAX_LEN     = 8
+
+
 def keyboard_layout_correction(
-    enabled: bool               = False,
-    correct_number_row: bool    = False,
+    correction_enabled: bool                = False,
+    correct_number_row: bool                = False,
+    symbol_miss_policy: str                 = 'refuse',
+    folding_miss_policy: 'str | None'       = None,
+    symbol_placeholder: str                 = '?',
 ):
     """
     Opt in to non-US keyboard layout correction.
 
-    enabled             - master switch. When on, correction applies to
-                          everything it can. Off by default.
-    correct_number_row  - treat a position-flipped number row as corrected
-                          base keys instead of leaving it positional (default).
-                          Only coherent where the row differs by position, not
+    correction_enabled  - master switch. When on, correction applies to
+                          everything it can. Off by default, because correction
+                          manipulates output and must be a deliberate choice.
+    correct_number_row  - treat a position-flipped number row as corrected base
+                          keys instead of leaving it positional (the default).
+                          Only coherent where the row differs by position, not by
                           Shift level.
 
-    What `enabled` turns on, as it is built out:
+    The next three govern string/Unicode OUTPUT only (phase 2): when a macro
+    types a character the active layout cannot produce, that character is a
+    "miss". Most characters are reachable on most Latin layouts, so misses are
+    rare; these decide what happens when one occurs.
+
+    symbol_miss_policy  - what to do with an unreachable character:
+                            'refuse'      - emit nothing for the whole string and
+                                            log the offending character. Loud and
+                                            safe; the default. The macro visibly
+                                            does nothing, with a journal trace.
+                            'fold'        - replace the character with its closest
+                                            ASCII equivalent and continue (e.g.
+                                            'e' for an unreachable accented e).
+                                            Uses anyascii when available, else a
+                                            built-in unicodedata fold. Lossy by
+                                            consent - opt in knowing it
+                                            approximates, and that a folded string
+                                            meant to trigger an action could
+                                            behave differently than typed.
+                            'placeholder' - replace the character with
+                                            symbol_placeholder and continue, so
+                                            the gap is visible in the output.
+
+    folding_miss_policy - only meaningful when symbol_miss_policy is 'fold': what
+                          to do with a character that is STILL unreachable after
+                          folding. Defaults to None, which resolves to 'refuse'.
+                            'refuse'      - emit nothing for the whole string and
+                                            log the character (loud, the default).
+                            'placeholder' - replace it with symbol_placeholder.
+                          A non-None value passed while symbol_miss_policy is not
+                          'fold' is ignored, with a debug note, since there is no
+                          fold for it to fall back from.
+
+    symbol_placeholder  - the string substituted under any 'placeholder' path
+                          (primary or folding). Any string (default '?'); an empty
+                          string drops the character silently. Ignored where no
+                          placeholder path is active.
+
+    What `correction_enabled` turns on, as it is built out:
         shortcut match + output correction (flat keycode map) ........ phase 1
         typed-string letter/punct correction (rides inverse map) ..... phase 1
         typed-string digit + symbol correction (symbol table) ........ phase 2
@@ -269,16 +361,54 @@ def keyboard_layout_correction(
         non-Latin handling (mechanism TBD; currently passthrough) .... later
     """
     global _LAYOUT_CORRECTION
-    new_options = {
-        'enabled':              enabled,
-        'correct_number_row':   correct_number_row,
-    }
-    for name, val in new_options.items():
-        if val not in (True, False):
-            raise ValueError(f"keyboard_layout_correction() wants True or False for '{name}'.")
 
-    _LAYOUT_CORRECTION = new_options
-    debug(f"Keyboard layout correction: {_LAYOUT_CORRECTION}")
+    for name, val in (('correction_enabled', correction_enabled),
+                        ('correct_number_row', correct_number_row)):
+        if val not in (True, False):
+            raise ValueError(
+                f"keyboard_layout_correction() wants True or False for '{name}'.")
+
+    if symbol_miss_policy not in _SYMBOL_MISS_POLICIES:
+        raise ValueError(
+            f"keyboard_layout_correction() wants one of {_SYMBOL_MISS_POLICIES} for "
+            f"'symbol_miss_policy', got {symbol_miss_policy!r}.")
+
+    # Detect explicit-vs-default BEFORE resolving the sentinel: a non-None value
+    # passed while the primary policy is not 'fold' has nothing to fall back
+    # from, so note that it is being ignored rather than silently storing it.
+    if folding_miss_policy is not None and symbol_miss_policy != 'fold':
+        debug(
+            f"keyboard_layout_correction(): 'folding_miss_policy' "
+            f"({folding_miss_policy!r}) is ignored because 'symbol_miss_policy' is "
+            f"{symbol_miss_policy!r}, not 'fold'.", ctx="LC")
+
+    # Resolve the sentinel to the real default, then validate the resolved value
+    # so an illegal value (e.g. 'fold') is caught whether or not it was passed.
+    if folding_miss_policy is None:
+        folding_miss_policy = 'refuse'
+    if folding_miss_policy not in _FOLDING_MISS_POLICIES:
+        raise ValueError(
+            f"keyboard_layout_correction() wants one of {_FOLDING_MISS_POLICIES} for "
+            f"'folding_miss_policy', got {folding_miss_policy!r}.")
+
+    if not isinstance(symbol_placeholder, str):
+        raise ValueError(
+            f"keyboard_layout_correction() wants a string for 'symbol_placeholder', "
+            f"got {type(symbol_placeholder).__name__}.")
+    if len(symbol_placeholder) > _SYMBOL_PLACEHOLDER_MAX_LEN:
+        raise ValueError(
+            f"keyboard_layout_correction() wants 'symbol_placeholder' no longer than "
+            f"{_SYMBOL_PLACEHOLDER_MAX_LEN} characters, got {len(symbol_placeholder)} "
+            f"({symbol_placeholder!r}).")
+
+    _LAYOUT_CORRECTION = {
+        'correction_enabled':           correction_enabled,
+        'correct_number_row':           correct_number_row,
+        'symbol_miss_policy':           symbol_miss_policy,
+        'folding_miss_policy':          folding_miss_policy,
+        'symbol_placeholder':           symbol_placeholder,
+    }
+    debug(f"Keyboard layout correction: {_LAYOUT_CORRECTION}", ctx="LC")
 
 
 def layout_correction_options():
@@ -462,34 +592,201 @@ class UnicodeNumberToolarge(Exception):
     pass
 
 
-def to_US_keystrokes(s: str):
-    """
-    Turn alphanumeric string (with spaces and some ASCII) up to length 
-    of 100 characters into keystroke commands
+def _fold_to_ascii(s: str) -> str:
+    """Transliterate a string to its closest plain-ASCII form for the 'fold'
+    miss policy. Prefers anyascii (broad, sensible transliterations like 'EUR'
+    for the euro sign); falls back to a stdlib NFD decomposition that strips
+    combining marks (so 'é' -> 'e', but characters with no decomposition, like
+    most symbols and all non-Latin scripts, are left as-is and will simply miss
+    again downstream). Either way the result is only a REDUCTION of misses, not a
+    guarantee of reachability — whatever still misses after folding is handled by
+    folding_miss_policy at the call site."""
+    if _HAVE_ANYASCII:
+        return _anyascii_fn(s)
+    decomposed = unicodedata.normalize('NFD', s)
+    return ''.join(decomposed_char for decomposed_char in decomposed
+                    if not unicodedata.combining(decomposed_char))
 
-    Warn: Almost certainly not going to work with non-US keymaps.
+
+def _combos_from_steps(steps) -> list:
+    """Convert a symbol-table sequence — a list of (base Key, [modifier Keys])
+    steps — into PreCorrectedCombo objects. One step for a directly-typeable
+    character, two for a dead-key character (dead key, then base). The combos are
+    marked pre-corrected so output de-correction leaves them alone: the table
+    already yields active-layout keycodes, and de-correcting them again would
+    double-apply. Routed (like any Combo) through the throttled send path by
+    handle_commands, so dead-key sequencing keeps proper inter-press delays."""
+    combos = []
+    for base_key, modifier_keycodes in steps:
+        modifiers = [Modifier.from_key(modifier_keycode)
+                        for modifier_keycode in modifier_keycodes]
+        combos.append(PreCorrectedCombo(modifiers, base_key))
+    return combos
+
+
+def _placeholder_combos(placeholder_str: str) -> 'list | None':
+    """Build the keystrokes for a placeholder substitution by running each of
+    its characters through the symbol table. Returns a (possibly empty) list of
+    combos on success, or None if ANY character of the placeholder is itself
+    unreachable on the active layout (caller treats that as a config error and
+    refuses the whole string).
+
+    An empty placeholder string returns an empty list — the missing character
+    contributes no keystrokes and is silently dropped, which is the documented
+    empty-placeholder behaviour."""
+    combos = []
+    for placeholder_char in placeholder_str:
+        steps = keystrokes_for_symbol(placeholder_char)
+        if steps is None:
+            return None
+        combos.extend(_combos_from_steps(steps))
+    return combos
+
+
+# def to_US_keystrokes(s: str):
+#     """
+#     Turn alphanumeric string (with spaces and some ASCII) up to length 
+#     of 100 characters into keystroke commands
+
+#     Warn: Almost certainly not going to work with non-US keymaps.
+#     """
+#     if len(s) > 100:
+#         raise TypingTooLong("`to_keystrokes` only supports strings of 100 characters or less")
+#     def _to_keystrokes(ctx: KeyContext):
+#         combo_list = []
+#         for c in s:
+#             if ord(c) > 127:
+#                 combo_list.append(unicode_keystrokes(ord(c)))
+#             elif c.isupper():
+#                 if ctx.capslock_on: combo_list.append(combo(c))
+#                 else: combo_list.append(combo("Shift-" + c))
+#             elif (str.isdigit(c)):
+#                 combo_list.append(Key[c.upper()])
+#             elif (str.isalpha(c)):
+#                 if ctx.capslock_on: combo_list.append(combo("Shift-" + c))
+#                 else: combo_list.append(Key[c.upper()])
+#             elif c in ASCII_TO_KEY:
+#                 combo_list.append(ASCII_TO_KEY[c])
+#             elif c in ASCII_WITH_SHIFT:
+#                 combo_list.append(ASCII_WITH_SHIFT[c])
+#             else:
+#                 raise CharacterNotSupported(f"The character {c} is not supported by `to_keystrokes` yet.")
+#         return combo_list
+
+#     return _to_keystrokes
+
+
+def to_US_keystrokes(string_to_process: str):
     """
-    if len(s) > 100:
+    Turn an alphanumeric string (with spaces and some ASCII), up to 100
+    characters, into keystroke commands.
+
+    On a US-like layout (no symbol table installed) this behaves exactly as it
+    always has: each character maps to its US-positional key(s). On a non-US
+    layout (a symbol table is installed by the layout-correction subsystem) each
+    character is instead looked up in that table, which yields the keystroke
+    sequence that actually types it on the active layout. A character the active
+    layout cannot produce is a "miss", handled per the configured policy
+    (see keyboard_layout_correction()).
+    """
+    if len(string_to_process) > 100:
         raise TypingTooLong("`to_keystrokes` only supports strings of 100 characters or less")
+
     def _to_keystrokes(ctx: KeyContext):
+        symbol_table = get_symbol_table()
+
+        # ── US-like layout: empty table. Run the original US-positional path
+        # verbatim, so this common case is byte-for-byte unchanged and free of
+        # any table/option overhead. ──
+        if not symbol_table:
+            combo_list = []
+            for character in string_to_process:
+                if ord(character) > 127:
+                    combo_list.append(unicode_keystrokes(ord(character)))
+                elif character.isupper():
+                    if ctx.capslock_on: combo_list.append(combo(character))
+                    else: combo_list.append(combo("Shift-" + character))
+                elif (str.isdigit(character)):
+                    combo_list.append(Key[character.upper()])
+                elif (str.isalpha(character)):
+                    if ctx.capslock_on: combo_list.append(combo("Shift-" + character))
+                    else: combo_list.append(Key[character.upper()])
+                elif character in ASCII_TO_KEY:
+                    combo_list.append(ASCII_TO_KEY[character])
+                elif character in ASCII_WITH_SHIFT:
+                    combo_list.append(ASCII_WITH_SHIFT[character])
+                else:
+                    raise CharacterNotSupported(
+                        f"The character {character} is not supported by `to_keystrokes` yet.")
+            return combo_list
+
+        # ── Non-US layout: a symbol table is installed. Look every character up
+        # in the table; handle misses by policy. ──
+        options             = layout_correction_options()
+        primary_policy      = options['symbol_miss_policy']
+        folding_policy      = options['folding_miss_policy']
+        placeholder_str     = options['symbol_placeholder']
+
+        # Folding is a whole-string pre-pass (it can be one-to-many, e.g. an
+        # unreachable ligature -> two ASCII letters, which changes length). After
+        # folding, every character still goes through the table — folding only
+        # changes WHICH characters are looked up, it does not bypass the table.
+        # Once folded, the in-loop miss handler uses folding_policy; unfolded, it
+        # uses primary_policy (which here is only ever 'refuse' or 'placeholder',
+        # never 'fold'). So the loop consults a single effective policy.
+        if primary_policy == 'fold':
+            chars           = _fold_to_ascii(string_to_process)
+            effective_miss  = folding_policy
+        else:
+            chars           = string_to_process
+            effective_miss  = primary_policy
+
         combo_list = []
-        for c in s:
-            if ord(c) > 127:
-                combo_list.append(unicode_keystrokes(ord(c)))
-            elif c.isupper():
-                if ctx.capslock_on: combo_list.append(combo(c))
-                else: combo_list.append(combo("Shift-" + c))
-            elif (str.isdigit(c)):
-                combo_list.append(Key[c.upper()])
-            elif (str.isalpha(c)):
-                if ctx.capslock_on: combo_list.append(combo("Shift-" + c))
-                else: combo_list.append(Key[c.upper()])
-            elif c in ASCII_TO_KEY:
-                combo_list.append(ASCII_TO_KEY[c])
-            elif c in ASCII_WITH_SHIFT:
-                combo_list.append(ASCII_WITH_SHIFT[c])
-            else:
-                raise CharacterNotSupported(f"The character {c} is not supported by `to_keystrokes` yet.")
+        for target_char in chars:
+            # Tab/newline are not produced by the string processor (it is for
+            # text only; line structure is built from separate Key/Combo macro
+            # elements). They are not in the table and were never supported here,
+            # so they continue to raise exactly as before.
+            if target_char in ('\t', '\n'):
+                raise CharacterNotSupported(
+                    f"The character {target_char!r} is not supported by `to_keystrokes` yet.")
+
+            steps = keystrokes_for_symbol(target_char)
+            if steps is not None:
+                combo_list.extend(_combos_from_steps(steps))
+                continue
+
+            # Miss. Resolve by the single effective policy.
+            if effective_miss == 'placeholder':
+                placeholder_combos = _placeholder_combos(placeholder_str)
+                if placeholder_combos is None:
+                    # Placeholder itself is unreachable on this layout — a config
+                    # error the user must fix. Refuse the whole string, loudly.
+                    error(
+                        f"to_keystrokes: symbol_placeholder {placeholder_str!r} is not "
+                        f"typeable on the active layout; refusing the whole string "
+                        f"{string_to_process!r}.", ctx="LC")
+                    return []
+                combo_list.extend(placeholder_combos)
+                continue
+
+            # effective_miss == 'refuse': abandon the whole string, name the
+            # offending character in the journal.
+            error(
+                f"to_keystrokes: character {target_char!r} is not typeable on the active "
+                f"layout (policy {effective_miss!r}); refusing the whole string {string_to_process!r}.",
+                ctx="LC")
+            return []
+
+        # CapsLock, if on, would alter the letter case the baked-in modifiers
+        # produce. Bracket the whole sequence with CapsLock toggles (same tactic
+        # as unicode_keystrokes), which is content-agnostic and leaves the
+        # table's own modifiers untouched — correct across letters, digits, and
+        # punctuation alike. Only meaningful when something was actually emitted.
+        if combo_list and ctx.capslock_on:
+            combo_list.insert(0, Key.CAPSLOCK)
+            combo_list.append(Key.CAPSLOCK)
+
         return combo_list
 
     return _to_keystrokes
@@ -1361,3 +1658,6 @@ def define_conditional_modmap(condition, mappings):
 
     return conditional(condition_fn, modmap(name, mappings))
     # _conditional_mod_map.append((condition, mod_remappings))
+
+
+# End of File #

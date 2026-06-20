@@ -14,10 +14,21 @@ symbol the active layout renders on that physical key) that the keymapper uses
 purely to annotate corrected keycodes in its own logs; it is never consulted
 for matching or output, so the keymapper stays symbol-blind in its logic.
 
+It also holds the Phase 2 symbol table: a map from a target character (or short
+string) to the keystroke sequence that types it on the active layout. Where the
+correction map fixes shortcut MATCHING (a flat keycode swap), the symbol table
+fixes string/Unicode OUTPUT — to_US_keystrokes and the Unicode path decompose a
+target into keystrokes assuming a US layout, which produces garbage on any other
+layout. The table lets those paths emit the right keys instead: each entry is a
+sequence of (keycode, [modifier_keycodes]) presses — length 1 for a directly
+typeable character, length 2 for a dead-key character (press the dead key, then
+the base). Characters not in the table are unreachable on this layout and are
+handled by the output path's miss policy, not here.
+
 All keycodes here are kernel/evdev codes, matching the Key enum (which mirrors
 the kernel input header). XKB keycodes are offset by +8 from these; that offset
-is the analyzer's concern and is resolved before the map ever reaches this
-module, so nothing here applies or reasons about it.
+is the analyzer's concern and is resolved before anything reaches this module,
+so nothing here applies or reasons about it.
 
 The maps are swapped wholesale on each layout change. Swaps arrive on the
 detector's watcher thread while the keymapper loop reads on its own thread, so
@@ -25,7 +36,7 @@ installation is an atomic reference rebind (never an in-place mutation), which
 is safe under CPython without a lock.
 """
 
-__version__ = '20260608'
+__version__ = '20260616'
 
 from .lib.logger import debug, warn, error
 from .models.key import Key
@@ -36,6 +47,7 @@ _NO_LABEL = 'Layout name not provided'
 _correction_map: 'dict[Key, Key]' = {}
 _inverse_map: 'dict[Key, Key]' = {}
 _symbol_hints: 'dict[Key, str]' = {}
+_symbol_table: 'dict[str, list]' = {}
 _correction_label: str = _NO_LABEL
 
 
@@ -59,10 +71,46 @@ def _format_correction_map(mapping: 'dict[Key, Key]') -> str:
     )
 
 
+def _convert_symbol_table(raw_table: 'dict | None', label: str) -> 'dict[str, list]':
+    """Convert a raw evdev symbol table to one keyed on Key objects.
+
+    Input shape (from the analyzer, all ints):
+        { target_string: [ (base_keycode, [modifier_keycode, ...]), ... ] }
+    Output shape (Key objects, so the output hot path never calls Key()):
+        { target_string: [ (Key, [Key, ...]), ... ] }
+
+    The whole table is rejected (returns empty) if ANY entry has a keycode the
+    Key enum does not define or a malformed structure — same all-or-nothing
+    policy as the correction map: a partially-converted output table could emit
+    wrong keystrokes, so a bad table disables symbol output entirely rather than
+    half-applying. No offset is applied; the analyzer already resolved XKB's +8.
+    """
+    if not raw_table:
+        return {}
+    try:
+        converted = {}
+        for target, sequence in raw_table.items():
+            if not isinstance(target, str) or not isinstance(sequence, (list, tuple)):
+                raise TypeError(f'bad entry for {target!r}')
+            steps = []
+            for step in sequence:
+                base_code, mod_codes = step                 # raises if not a 2-tuple
+                base_key = Key(base_code)
+                mod_keys = [Key(code) for code in mod_codes]
+                steps.append((base_key, mod_keys))
+            converted[target] = steps
+        return converted
+    except (ValueError, TypeError) as table_err:
+        error(f"Symbol table for '{label}' is malformed ({table_err}); disabling "
+                f"symbol output for this layout. {len(raw_table)} raw entries.")
+        return {}
+
+
 def set_correction_map(
     correction_map: 'dict[int, int] | None',
     label: str = _NO_LABEL,
     symbol_hints: 'dict[int, str] | None' = None,
+    symbol_table: 'dict[str, list] | None' = None,
 ):
     """
     Install a new keycode correction map (atomic reference rebind).
@@ -86,6 +134,17 @@ def set_correction_map(
                         output, malformed hints are dropped without disabling
                         correction, and hints are cleared whenever the correction
                         map is empty or rejected.
+    symbol_table      - optional Phase 2 output table, { target_string:
+                        [(base_keycode, [modifier_keycode, ...]), ...] } of raw
+                        evdev keycodes, telling the string/Unicode output paths
+                        which keystroke sequence types each character on the
+                        active layout. Empty/None on US-like layouts (ASCII is
+                        reachable directly with no table). Converted to Key
+                        objects here; a malformed table disables symbol output
+                        for this layout without affecting correction. Independent
+                        of the correction map: a layout can need one and not the
+                        other, so the table is NOT cleared when the correction
+                        map is empty.
 
     Called from the layout-detection coordinator's callback on the detector's
     watcher thread. A malformed map (a keycode not in the Key enum) is rejected
@@ -95,6 +154,7 @@ def set_correction_map(
     global _correction_map
     global _inverse_map
     global _symbol_hints
+    global _symbol_table
     global _correction_label
     if not label:
         label = _NO_LABEL
@@ -121,13 +181,19 @@ def set_correction_map(
         hints = {}
     if not forward:
         hints = {}
+    # Symbol table is independent of correction: a layout may need output
+    # correction without keycode correction (or vice versa), so it is installed
+    # on its own terms and not cleared when the correction map is empty.
+    table = _convert_symbol_table(symbol_table, label)
     _correction_map = forward
     _inverse_map = inverse
     _symbol_hints = hints
+    _symbol_table = table
     _correction_label = label
     debug(">>>   " * int(80/6), ctx="LC")
     debug(f"Correction map installed for '{label}' ({len(forward)} entries): \n"
             f"{_format_correction_map(forward)}", ctx="LC")
+    debug(f"Symbol table installed for '{label}': {len(table)} entries", ctx="LC")
     debug("<<<   " * int(80/6), ctx="LC")
 
 
@@ -153,6 +219,24 @@ def xkb_symbol_for_key(key: Key) -> 'str | None':
 def get_correction_map() -> 'dict[Key, Key]':
     """Return the currently installed forward correction map (live reference)."""
     return _correction_map
+
+
+def keystrokes_for_symbol(target: str) -> 'list | None':
+    """Return the keystroke sequence that types a character on the active layout,
+    or None when the character has no entry (unreachable on this layout — the
+    caller applies its miss policy).
+
+    The sequence is a list of (Key, [Key, ...]) steps: a base key plus the
+    modifier keys to hold while pressing it. Length 1 for a directly typeable
+    character, length 2 for a dead-key character. Empty table (US-like layouts)
+    returns None for everything, so the output path falls back to its existing
+    US-positional behaviour, which is already correct there."""
+    return _symbol_table.get(target)
+
+
+def get_symbol_table() -> 'dict[str, list]':
+    """Return the currently installed symbol table (live reference)."""
+    return _symbol_table
 
 
 # End of file #

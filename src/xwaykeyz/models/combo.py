@@ -67,3 +67,27 @@ class Combo:
         if isinstance(modifiers, Modifier):
             modifiers = {modifiers}
         return Combo(self.modifiers | modifiers, self.key)
+
+
+
+class PreCorrectedCombo(Combo):
+    """A Combo whose key is already correct for the active keyboard layout and
+    must NOT be put through output de-correction again.
+
+    The Phase 2 string/Unicode emitter builds its keystrokes from the per-layout
+    symbol table, which already yields active-layout keycodes. Phase 1 output
+    de-correction (`_decorrect_output_command` in transform.py) rewrites a
+    matched-remap's key through the inverse correction map so XKB renders the
+    intended symbol on a non-US layout. Running that over emitter output would
+    double-correct it. This subclass is the marker the de-correction step checks
+    for to leave such output untouched.
+
+    It adds no behaviour: it is a plain Combo in every other respect, so it flows
+    through `handle_commands` and `_output.send_combo` exactly like any Combo
+    (the `isinstance(command, Combo)` branch still matches it), and it compares
+    and hashes equal to a Combo with the same modifiers and key (equality is
+    content-based and intentionally does not fork on pre-correction; immunity is
+    decided by isinstance, not by equality)."""
+
+
+# End of File #
