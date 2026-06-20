@@ -86,7 +86,7 @@ LAYOUT_CORRECTION_DEFAULTS = {
     # The API accepts None here meaning "unset"; it resolves to 'refuse'. A
     # non-default value passed while symbol_miss_policy is not 'fold' is ignored
     # (with a debug note), since it has nothing to fall back from.
-    'folding_miss_policy':      'refuse',
+    'folded_miss_policy':       'refuse',
 
     # The character or string substituted when 'placeholder' is the active
     # symbol miss policy or folding miss policy (see above). An empty string
@@ -293,7 +293,7 @@ def throttle_delays(key_pre_delay_ms=0, key_post_delay_ms=0):
 
 
 _SYMBOL_MISS_POLICIES           = ('refuse', 'fold', 'placeholder')
-_FOLDING_MISS_POLICIES          = ('refuse', 'placeholder')
+_FOLDED_MISS_POLICIES           = ('refuse', 'placeholder')
 _SYMBOL_PLACEHOLDER_MAX_LEN     = 8
 
 
@@ -301,7 +301,7 @@ def keyboard_layout_correction(
     correction_enabled: bool                = False,
     correct_number_row: bool                = False,
     symbol_miss_policy: str                 = 'refuse',
-    folding_miss_policy: 'str | None'       = None,
+    folded_miss_policy: 'str | None'        = None,
     symbol_placeholder: str                 = '?',
 ):
     """
@@ -338,7 +338,7 @@ def keyboard_layout_correction(
                                             symbol_placeholder and continue, so
                                             the gap is visible in the output.
 
-    folding_miss_policy - only meaningful when symbol_miss_policy is 'fold': what
+    folded_miss_policy  - only meaningful when symbol_miss_policy is 'fold': what
                           to do with a character that is STILL unreachable after
                           folding. Defaults to None, which resolves to 'refuse'.
                             'refuse'      - emit nothing for the whole string and
@@ -376,20 +376,20 @@ def keyboard_layout_correction(
     # Detect explicit-vs-default BEFORE resolving the sentinel: a non-None value
     # passed while the primary policy is not 'fold' has nothing to fall back
     # from, so note that it is being ignored rather than silently storing it.
-    if folding_miss_policy is not None and symbol_miss_policy != 'fold':
+    if folded_miss_policy is not None and symbol_miss_policy != 'fold':
         debug(
-            f"keyboard_layout_correction(): 'folding_miss_policy' "
-            f"({folding_miss_policy!r}) is ignored because 'symbol_miss_policy' is "
+            f"keyboard_layout_correction(): 'folded_miss_policy' "
+            f"({folded_miss_policy!r}) is ignored because 'symbol_miss_policy' is "
             f"{symbol_miss_policy!r}, not 'fold'.", ctx="LC")
 
     # Resolve the sentinel to the real default, then validate the resolved value
     # so an illegal value (e.g. 'fold') is caught whether or not it was passed.
-    if folding_miss_policy is None:
-        folding_miss_policy = 'refuse'
-    if folding_miss_policy not in _FOLDING_MISS_POLICIES:
+    if folded_miss_policy is None:
+        folded_miss_policy = 'refuse'
+    if folded_miss_policy not in _FOLDED_MISS_POLICIES:
         raise ValueError(
-            f"keyboard_layout_correction() wants one of {_FOLDING_MISS_POLICIES} for "
-            f"'folding_miss_policy', got {folding_miss_policy!r}.")
+            f"keyboard_layout_correction() wants one of {_FOLDED_MISS_POLICIES} for "
+            f"'folded_miss_policy', got {folded_miss_policy!r}.")
 
     if not isinstance(symbol_placeholder, str):
         raise ValueError(
@@ -405,7 +405,7 @@ def keyboard_layout_correction(
         'correction_enabled':           correction_enabled,
         'correct_number_row':           correct_number_row,
         'symbol_miss_policy':           symbol_miss_policy,
-        'folding_miss_policy':          folding_miss_policy,
+        'folded_miss_policy':           folded_miss_policy,
         'symbol_placeholder':           symbol_placeholder,
     }
     debug(f"Keyboard layout correction: {_LAYOUT_CORRECTION}", ctx="LC")
@@ -600,7 +600,7 @@ def _fold_to_ascii(s: str) -> str:
     most symbols and all non-Latin scripts, are left as-is and will simply miss
     again downstream). Either way the result is only a REDUCTION of misses, not a
     guarantee of reachability — whatever still misses after folding is handled by
-    folding_miss_policy at the call site."""
+    folded_miss_policy at the call site."""
     if _HAVE_ANYASCII:
         return _anyascii_fn(s)
     decomposed = unicodedata.normalize('NFD', s)
@@ -724,7 +724,7 @@ def to_US_keystrokes(string_to_process: str):
         # in the table; handle misses by policy. ──
         options             = layout_correction_options()
         primary_policy      = options['symbol_miss_policy']
-        folding_policy      = options['folding_miss_policy']
+        folding_policy      = options['folded_miss_policy']
         placeholder_str     = options['symbol_placeholder']
 
         # Folding is a whole-string pre-pass (it can be one-to-many, e.g. an
