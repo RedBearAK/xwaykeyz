@@ -220,11 +220,6 @@ class Key(IntEnum, metaclass=KeyMeta):
     F23                         = 193
     F24                         = 194
 
-    # Virtual carrier keys for user-defined Modifier() objects (e.g., Hyper)
-    V_HYPER                     = 195
-    V_CRAZY                     = 196
-    V_PLAID                     = 197
-
     PLAYCD                      = 200
     PAUSECD                     = 201
     PROG3                       = 202
@@ -668,6 +663,62 @@ class Key(IntEnum, metaclass=KeyMeta):
     BTN_TRIGGER_HAPPY38         = 0x2e5
     BTN_TRIGGER_HAPPY39         = 0x2e6
     BTN_TRIGGER_HAPPY40         = 0x2e7
+
+    # ---------------------------------------------------------------------------
+    # Virtual carrier keycodes for keymapper-internal fake modifiers.
+    #
+    # These exist ONLY inside the keymapper -- activating remaps in keymaps,
+    # negating a troublesome modifier under specific conditions, etc. They are
+    # never meant to carry a real character or modifier out to the system. They are
+    # deliberately placed ABOVE 255 for one structural reason:
+    #
+    #   XKB's keycode space is hard-capped at 255 (evdev 247, after the +8 XKB
+    #   offset). Any evdev code above 247 is OUTSIDE the range XKB processes, so it
+    #   can never be named, bound to a keysym, or turned into a modifier by ANY
+    #   layout -- standard or custom, now or in the future. These fakes are
+    #   therefore invisible to the XKB keysym path by construction, not by
+    #   circumstance.
+    #
+    # Why NOT the kernel-undefined 195-199 gap (the obvious-looking spot, and where
+    # these used to live): those codes ARE within XKB's range, and the default 'pc'
+    # symbols include -- present in virtually every layout -- already binds them:
+    #
+    #     evdev 195  <LVL5>  ISO_Level5_Shift -> SetMods(LevelFive)
+    #     evdev 196  <ALT>   -> Alt   (Mod1)
+    #     evdev 197  <META>  Meta_L   (Mod1)
+    #     evdev 198  <SUPR>  Super_L  (Mod4)
+    #     evdev 199  <HYPR>  Hyper_L  (Mod4)
+    #
+    # A fake sitting on one of those only stays harmless as long as (a) the
+    # keymapper consumes the event before the compositor's XKB sees it, AND (b) the
+    # active layout happens to have no content on that modifier's level. Both are
+    # circumstantial. On a US layout nothing uses level 5, so a leaked 195 is
+    # invisible -- but on an 8-level layout a leaked 195 would suddenly shift to
+    # level 5, and a leaked 198 would register as Super (popping launcher menus).
+    # So anything below 256 CAN collide with pre-defined XKB behavior; the >255
+    # range CANNOT. The "Avoiding ..." note on each line below records which XKB
+    # slot that code maps to, so this window is not mistaken for free gap later.
+    #
+    # Placement: 755-759 sit in the trailing gap below KEY_MAX (767) in
+    # input-event-codes.h, clear of all KEY_ and BTN_ definitions, with 760-766
+    # left as margin against a future "park it at the very end" kernel addition.
+    #
+    # Two honest caveats:
+    #   - ">255" ghosts these from XKB / keysym translation specifically, NOT from
+    #     the input stack as a whole. A raw-evdev reader (this keymapper, evtest, a
+    #     game reading /dev/input directly) still sees them as plain event codes;
+    #     they just have no symbolic name and no XKB meaning.
+    #   - The uinput output device must DECLARE these codes in its EV_KEY capability
+    #     bitmap at setup, or the kernel will silently drop writes of them.
+    # ---------------------------------------------------------------------------
+
+    # Virtual carrier keys for keymapper-internal fake modifiers (all > 255 so XKB
+    # can never see or react to them). See the block above for the full rationale.
+    V_L5_SH = 755    # Avoiding 195 (XKB <LVL5>)
+    V_FAKEY = 756    # Avoiding 196 (XKB <ALT>)
+    V_PLAID = 757    # Avoiding 197 (XKB <META>)
+    V_CRAZY = 758    # Avoiding 198 (XKB <SUPR>)
+    V_HYPER = 759    # Avoiding 199 (XKB <HYPR>)
 
     # We avoid low common keys in module aliases so they don't get huge.
     KEY_MIN_INTERESTING         = MUTE
