@@ -474,15 +474,27 @@ def suspend_or_resuspend_keys(timeout):
 def suspend_keys(timeout):
     global _suspend_timer
     global _last_suspend_timeout
+
     debug("suspending keys:", pressed_mods_not_exerted_on_output())
-    # Changing Keystate.is_pressed() to use property decorator, for consistency.
+
+    # Changed Keystate.key_is_pressed() to use property decorator, for consistency.
     states: list[Keystate] = [x for x in _key_states.values() if x.key_is_pressed]
     for s in states:
         s.suspended = True
+
     loop = get_or_create_event_loop()
+
     _last_suspend_timeout = timeout
     _suspend_timer = loop.call_later(timeout, resume_keys)
+
     pointer_monitor.listen(loop, resume_keys)
+
+    # Motionless-click rescue: if the pointer was used just before this
+    # modifier press, treat it as pointer-combo intent and resume now,
+    # so a click with no motion of its own still lands on a held mod.
+    if pointer_monitor.recent_activity_within():
+        debug("resume because of recent pointer activity before mod press")
+        resume_keys()
 
 
 # ─── DUMP DIAGNOSTICS ────────────────────────────────────────────────────────
