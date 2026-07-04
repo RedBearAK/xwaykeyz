@@ -113,6 +113,10 @@ def main_loop(arg_devices, device_watch, ignore_devices=None):
         # Run async startup (wakeup_output and device grabbing) before main loop
         loop.run_until_complete(async_startup())
 
+        # Begin always-on passive pointer watching for the recency-flag
+        # rescue (motionless clicks on precursor-less pointing devices).
+        transform.pointer_monitor.start_passive_watch(loop)
+
         if device_watch:
             loop.add_reader(inotify.fd, _inotify_handler, registry, inotify)
 
