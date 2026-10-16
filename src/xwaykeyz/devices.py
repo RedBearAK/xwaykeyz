@@ -28,7 +28,18 @@ _synth_id_prefix_rgx = re.compile(
 
 
 def check_input_permissions():
-    """Check if user has appropriate permissions to /dev/input/ without requiring a keyboard"""
+    """
+    Advisory check of the user's access to '/dev/input/' event nodes.
+
+    Returns a (perms_ok, message) tuple. The check fails only when NO event
+    node is readable and writable, which usually means the user is not in the
+    'input' group or the udev rule has not been applied. A node that just
+    appeared (e.g. a Bluetooth device reconnecting at login) stays root-only
+    for a moment until udev applies the group/mode/ACL, so a few inaccessible
+    nodes alongside accessible ones is normal and is reported as a warning
+    message with perms_ok still True. Devices.all() skips nodes it cannot
+    open, and the inotify ATTRIB handler grabs them once udev fixes them.
+    """
 
     # Check if /dev/input/ directory exists and is accessible
     if not os.path.exists('/dev/input'):
@@ -41,23 +52,30 @@ def check_input_permissions():
         if not device_files:
             return True, "'/dev/input/' directory is empty but accessible"
 
-        # Check permissions on at least one event device if available
-        for file in device_files:
-            if file.startswith('event'):
-                event_path = f'/dev/input/{file}'
+        event_nodes = [f for f in device_files if f.startswith('event')]
+        if not event_nodes:
+            return True, "No event devices found, but '/dev/input/' is accessible"
 
-                # Check read permission
-                if not os.access(event_path, os.R_OK):
-                    return False, f"No read permission on '{event_path}'"
+        inaccessible = []
+        for file in event_nodes:
+            event_path = f'/dev/input/{file}'
+            if not os.access(event_path, os.R_OK | os.W_OK):
+                inaccessible.append(file)
 
-                # Check write permission
-                if not os.access(event_path, os.W_OK):
-                    return False, f"No write permission on '{event_path}'"
+        if len(inaccessible) == len(event_nodes):
+            return False, (
+                f"No read/write access to any of the {len(event_nodes)} "
+                f"event device(s) in '/dev/input/'"
+            )
 
-                # Found at least one accessible event device
-                return True, None
+        if inaccessible:
+            return True, (
+                f"{len(inaccessible)} of {len(event_nodes)} event device(s) not yet "
+                f"accessible (udev may still be applying permissions): {inaccessible}"
+            )
 
-        return True, "No event devices found, but '/dev/input/' is accessible"
+        # Every event device is accessible
+        return True, None
 
     except PermissionError as e:
         return False, f"Permission error accessing '/dev/input/': {e}"
@@ -224,14 +242,18 @@ class DeviceRegistry:
         Async version of autodetect - finds keyboards and grabs them,
         waiting for each device to be idle (no keys held) before grabbing.
         """
-        # First check permissions independently of device availability
+        # Advisory permission check. This must NOT return early: a single node
+        # that udev has not fixed up yet would otherwise block grabbing every
+        # keyboard that IS accessible. Devices.all() skips what it cannot open,
+        # and the hotplug handler grabs nodes once their permissions change.
         perms_ok, perms_msg = check_input_permissions()
         if not perms_ok:
             error(f"Input permission issue: {perms_msg}")
-            error("Please ensure you have r/w permissions on /dev/input/*")
-            # Continue running instead of exiting, but log clearly
-            info("Waiting for permissions to be fixed...")
-            return
+            error("Please ensure you have r/w permissions on /dev/input/* "
+                  "(membership in 'input' group, udev rules applied)")
+            info("Continuing anyway. Devices will be grabbed if/when they become accessible.")
+        elif perms_msg:
+            info(f"Input permission note: {perms_msg}")
 
         # Get all available devices (regardless of type)
         all_devices = Devices.all()
