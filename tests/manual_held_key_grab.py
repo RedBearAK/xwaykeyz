@@ -11,23 +11,28 @@ keyboards, and 'libinput debug-events' (usually needs 'input' group
 membership or root). Run it with the Python that has xwaykeyz's deps:
 
     ~/.config/toshy/.venv/bin/python tests/manual_held_key_grab.py
-    ~/.config/toshy/.venv/bin/python tests/manual_held_key_grab.py --repair
+    ~/.config/toshy/.venv/bin/python tests/manual_held_key_grab.py --long
 
 What it does:
 
 1. Creates virtual keyboard A (a full key set, so xwaykeyz treats it as a
    keyboard and grabs it) and holds F24 on it.
 2. Releases F24 after the hold time, while watching 'libinput debug-events'.
-   If xwaykeyz held the grab at that moment, libinput never sees A's release
-   until A is removed at the end.
+   If xwaykeyz held the grab at that moment and nothing repaired it, libinput
+   never sees A's release until A is removed at the end.
 3. Creates virtual device B (only an F24 key, so xwaykeyz ignores it) and
    taps F24. Mutter ignores that press while A still counts as holding F24,
    so a release that only arrived via device removal fails the ordering check.
 
-Default hold is 7.5s: past the 5s after which the old grab() grabbed a busy
-keyboard anyway, but within the patched grab()'s ungrab-and-retry handling.
---repair holds for 12s: past the patched budget too, so xwaykeyz grabs with
-F24 down and _repair_stuck_keys() must clear it on release.
+What it proves: a key held from before the grab, for longer than grab()'s
+idle-wait budget, is grabbed anyway and then repaired by
+DeviceRegistry._repair_stuck_keys() the moment the key is released. Both
+hold times (default 7.5s, --long 12s) exceed the budget, so both exercise
+that path; the longer one just leaves more margin. The post-grab
+ungrab-and-retry branch in grab() only fires for a key pressed in the tens
+of milliseconds between the last idle poll and the grab call, which cannot
+be hit deterministically from here; tests/test_device_grab_lifecycle.py
+covers it with a fake device.
 
 Pass criteria: A's release reaches libinput before B's press, A pressed
 exactly once (an injected press must be ignored, not seen twice), and the
@@ -35,7 +40,7 @@ xwaykeyz virtual keyboard never pressed F24 (the repair must not type it).
 
 Exit status 0 on pass, 1 on fail, 2 if the environment is missing something.
 """
-__version__ = '20261016'
+__version__ = '20261017'
 
 import sys
 import time
@@ -46,15 +51,15 @@ import subprocess
 from evdev import UInput, ecodes
 
 
-HOLD_PREVENTION_SEC     = 7.5
-HOLD_REPAIR_SEC         = 12.0
+HOLD_DEFAULT_SEC        = 7.5
+HOLD_LONG_SEC           = 12.0
 TEST_KEY                = ecodes.KEY_F24
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Held-key grab check against libinput.')
-    parser.add_argument('--repair', action='store_true',
-                        help=f'hold for {HOLD_REPAIR_SEC}s to force a grab with the key down')
+    parser.add_argument('--long', action='store_true',
+                        help=f'hold for {HOLD_LONG_SEC}s instead of {HOLD_DEFAULT_SEC}s')
     parser.add_argument('--hold', type=float, default=None,
                         help='override the hold time in seconds')
     return parser.parse_args()
@@ -165,13 +170,12 @@ def main():
     args = parse_args()
     if args.hold is not None:
         hold_sec = args.hold
-    elif args.repair:
-        hold_sec = HOLD_REPAIR_SEC
+    elif args.long:
+        hold_sec = HOLD_LONG_SEC
     else:
-        hold_sec = HOLD_PREVENTION_SEC
+        hold_sec = HOLD_DEFAULT_SEC
 
-    mode = 'repair' if hold_sec > 5.0 and args.repair else 'prevention'
-    print(f'Mode: {mode} (hold {hold_sec}s). xwaykeyz must be running.\n')
+    print(f'Held-key repair check (hold {hold_sec}s). xwaykeyz must be running.\n')
 
     output = run_scenario(hold_sec)
     events = parse_events(output)

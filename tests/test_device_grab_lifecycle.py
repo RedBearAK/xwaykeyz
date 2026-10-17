@@ -22,7 +22,7 @@ here.
 Runnable standalone (accumulates a score in main) and collectable by pytest
 (bool-returning test functions).
 """
-__version__ = '20261016'
+__version__ = '20261017'
 
 import os
 import sys
@@ -209,6 +209,9 @@ def test_key_held_past_budget_grabs_anyway():
                      4.8 < elapsed < 5.7, f'{elapsed:.3f}s')
     all_ok &= report('log says the repair will handle it',
                      any('repaired when released' in line for line in LOG))
+    held_lines = [line for line in LOG if 'still has keys held' in line or 'Keys still held' in line]
+    all_ok &= report('held keys reported once, not by both the idle wait and the post-grab check',
+                     len(held_lines) == 1, f'{len(held_lines)} line(s)')
     return all_ok
 
 
