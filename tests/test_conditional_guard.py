@@ -89,12 +89,17 @@ exec(
     'hmp_is_remote = lambda ctx: ctx.wm_class == "remote"\n'
     'broken_when = lambda ctx: hmp_not_remote(ctx) and ctx.wm_class != "x"\n'
     'nested_when = lambda ctx: any(f(ctx) for f in [lambda c: hmp_not_remote(c)])\n'
-    'ok_when = lambda ctx: not hmp_is_remote(ctx)\n',
+    'ok_when = lambda ctx: not hmp_is_remote(ctx)\n'
+    'def _pre_check(ctx):\n'
+    '    global ctx_app_is_remote\n'
+    '    ctx_app_is_remote = hmp_is_remote(ctx)\n'
+    'runtime_global_when = lambda ctx: not ctx_app_is_remote\n',
     _cfg_ns,
 )
 broken_when = _cfg_ns['broken_when']
 nested_when = _cfg_ns['nested_when']
 ok_when = _cfg_ns['ok_when']
+runtime_global_when = _cfg_ns['runtime_global_when']
 
 
 def test_raising_conditional_is_non_match_and_logged_once():
@@ -203,6 +208,9 @@ def test_static_name_check():
     all_ok &= report('builtins are not reported',
                      guard.find_missing_names(lambda ctx: len(ctx.wm_class) > 0) == [])
     all_ok &= report('non-Python callable skipped', guard.find_missing_names(len) == [])
+    all_ok &= report('global assigned at runtime by a config function is not flagged',
+                     'ctx_app_is_remote' not in _cfg_ns
+                     and guard.find_missing_names(runtime_global_when) == [])
 
     items = [
         ('keymap', 'km-ok', ok_when),
