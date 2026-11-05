@@ -11,8 +11,9 @@ Focused tests for the device grab lifecycle in xwaykeyz.devices:
   the desktop gets the release, and grabs anyway once the time budget (shared
   with the idle wait) is spent (#84).
 - DeviceRegistry._repair_stuck_keys() injects press+release into the device
-  node only for a release whose press never reached us, ignores mouse buttons,
-  and drops the device if the regrab fails.
+  node only for a release of a key the kernel reported held at grab time
+  (once each, no per-event press tracking), ignores mouse buttons, and drops
+  the device if the regrab fails.
 
 Everything runs against the real DeviceRegistry with a fake InputDevice, so no
 hardware, no uinput and no root are needed. The libinput side (does the
@@ -175,8 +176,8 @@ def test_idle_device_grabbed_immediately():
     all_ok &= report('fd drained after grab', device.drains >= 1)
     all_ok &= report('grab completed well under 0.4s (old code slept 0.2s + 0.15s quiet)',
                      elapsed < 0.4, f'{elapsed:.3f}s')
-    all_ok &= report('press-tracking slot created for the device',
-                     device.path in registry._down_since_grab)
+    all_ok &= report('held-at-grab slot created for the device, and empty',
+                     registry._held_at_grab.get(device.path) == set())
     return all_ok
 
 
@@ -204,7 +205,10 @@ def test_key_held_past_budget_grabs_anyway():
     registry, loop, elapsed = run_grab(device)
     all_ok = True
     all_ok &= report('grabbed anyway, reader added',
-                     device in loop.readers and device.path in registry._down_since_grab)
+                     device in loop.readers and device.path in registry._held_at_grab)
+    all_ok &= report('held keys recorded as the only repair candidates',
+                     registry._held_at_grab[device.path] == {ecodes.KEY_LEFTSHIFT},
+                     f'{registry._held_at_grab[device.path]}')
     all_ok &= report('total time is the single shared budget (~5s)',
                      4.8 < elapsed < 5.7, f'{elapsed:.3f}s')
     all_ok &= report('log says the repair will handle it',
@@ -230,15 +234,20 @@ def test_grab_retries_after_ebusy():
     return all_ok
 
 
-def test_repair_only_for_untracked_release():
-    """Repair fires for a release whose press never reached us, and nothing else."""
+def test_repair_only_for_keys_held_at_grab():
+    """Repair fires once per key the kernel reported held at grab, and for nothing else."""
     print('\n[stuck-key repair selection]')
     device = FakeDevice('repair')
     registry, loop, elapsed = run_grab(device)
+    registry._held_at_grab[device.path] = {ecodes.KEY_LEFTSHIFT}
     all_ok = True
 
     registry._repair_stuck_keys(device, [key_event(ecodes.KEY_A, 1), key_event(ecodes.KEY_A, 0)])
-    all_ok &= report('press+release both since grab: no repair',
+    all_ok &= report('press+release of a key not held at grab: no repair',
+                     device.ungrabs == 0 and device.writes == [])
+
+    registry._repair_stuck_keys(device, [key_event(ecodes.KEY_W, 0)])
+    all_ok &= report('bare release of a key not held at grab: no repair (no press tracking)',
                      device.ungrabs == 0 and device.writes == [])
 
     registry._repair_stuck_keys(device, [key_event(ecodes.BTN_LEFT, 0)])
@@ -251,11 +260,15 @@ def test_repair_only_for_untracked_release():
         (ecodes.EV_KEY, ecodes.KEY_LEFTSHIFT, 0),
         (ecodes.EV_SYN, ecodes.SYN_REPORT, 0),
     ]
-    all_ok &= report('release with no press since grab: ungrab, inject press+release, regrab',
+    all_ok &= report('release of a key held at grab: ungrab, inject press+release, regrab',
                      device.ungrabs == 1 and device.grabs == 2 and device.writes == expected_writes,
                      f'ungrabs={device.ungrabs} grabs={device.grabs} writes={device.writes}')
     all_ok &= report('device still registered after repair',
                      device in registry._devices and device in loop.readers)
+
+    registry._repair_stuck_keys(device, [key_event(ecodes.KEY_LEFTSHIFT, 0)])
+    all_ok &= report('same key released again later: no second repair, candidate consumed',
+                     device.ungrabs == 1 and registry._held_at_grab[device.path] == set())
     return all_ok
 
 
@@ -265,11 +278,12 @@ def test_repair_regrab_failure_drops_device():
     device = FakeDevice('regrab-fails')
     registry, loop, elapsed = run_grab(device)
     device.regrab_fail = True
+    registry._held_at_grab[device.path] = {ecodes.KEY_W}
     registry._repair_stuck_keys(device, [key_event(ecodes.KEY_W, 0)])
     all_ok = True
     all_ok &= report('device removed from registry and reader list',
                      device not in registry._devices and device not in loop.readers)
-    all_ok &= report('press-tracking slot cleared', device.path not in registry._down_since_grab)
+    all_ok &= report('held-at-grab slot cleared', device.path not in registry._held_at_grab)
     all_ok &= report('failure logged', any('re-grabbing' in line for line in LOG))
     return all_ok
 
@@ -279,15 +293,15 @@ def test_input_callback_batch_reaches_repair():
     print('\n[callback wiring]')
     registry, loop = make_registry(input_cb=lambda device: [key_event(ecodes.KEY_D, 0)])
     device = FakeDevice('via-callback')
-    registry._down_since_grab[device.path] = set()
+    registry._held_at_grab[device.path] = {ecodes.KEY_D}
     registry._safe_input_cb(device)
-    all_ok = report('untracked release in the returned batch triggered a repair',
+    all_ok = report('held-at-grab release in the returned batch triggered a repair',
                     device.ungrabs == 1 and len(device.writes) == 4,
                     f'ungrabs={device.ungrabs} writes={len(device.writes)}')
 
     registry, loop = make_registry(input_cb=lambda device: None)
     device = FakeDevice('old-callback')
-    registry._down_since_grab[device.path] = set()
+    registry._held_at_grab[device.path] = {ecodes.KEY_D}
     registry._safe_input_cb(device)
     all_ok &= report('callback returning None is tolerated', device.ungrabs == 0)
     return all_ok
@@ -300,7 +314,7 @@ def main():
         test_key_held_at_grab_is_released_then_regrabbed(),
         test_key_held_past_budget_grabs_anyway(),
         test_grab_retries_after_ebusy(),
-        test_repair_only_for_untracked_release(),
+        test_repair_only_for_keys_held_at_grab(),
         test_repair_regrab_failure_drops_device(),
         test_input_callback_batch_reaches_repair(),
     ]
